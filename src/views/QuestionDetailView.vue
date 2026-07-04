@@ -19,8 +19,9 @@
     <div class="main-container" ref="containerRef">
       <!-- ====== 左面板：题目 ====== -->
       <div class="left-panel" :style="{ width: leftWidth + 'px' }">
-        <!-- 添加 @tab-click 事件 -->
         <el-tabs v-model="activeTab" class="tabs" @tab-click="handleTabClick">
+
+          <!-- ====== 1. 题目描述 ====== -->
           <el-tab-pane label="题目描述" name="description">
             <div class="question-header">
               <span class="question-id">{{ questionData?.questionId }}</span>
@@ -75,23 +76,19 @@
             </div>
           </el-tab-pane>
 
+          <!-- ====== 2. 题解 ====== -->
           <el-tab-pane label="题解" name="solution">
             <el-empty description="暂无题解，敬请期待" />
           </el-tab-pane>
 
+          <!-- ====== 3. 提交记录 ====== -->
           <el-tab-pane label="提交记录" name="submissions">
-            <!-- 加载中 -->
             <div v-if="submissionsLoading" class="submissions-loading">
               <el-skeleton :rows="5" animated />
             </div>
-
-            <!-- 空状态 -->
             <el-empty v-else-if="submissionsList.length === 0" description="暂无提交记录" />
-
-            <!-- 提交列表 -->
             <div v-else class="submissions-list">
               <el-table :data="submissionsList" stripe style="width: 100%;" :header-cell-style="{ background: '#f5f7fa' }">
-                <!-- 状态 -->
                 <el-table-column prop="status" label="状态" width="120" align="center">
                   <template #default="{ row }">
                     <el-tag :type="getStatusType(row.submitStatus)" size="small">
@@ -99,36 +96,26 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-
-                <!-- 耗时 -->
                 <el-table-column prop="timeUsed" label="耗时" width="100" align="center">
                   <template #default="{ row }">
                     <span>{{ row.timeUsed || '-' }} ms</span>
                   </template>
                 </el-table-column>
-
-                <!-- 内存 -->
                 <el-table-column prop="memoryUsed" label="内存" width="120" align="center">
                   <template #default="{ row }">
                     <span>{{ row.memoryUsed ? (row.memoryUsed / 1024).toFixed(2) + ' MB' : '-' }}</span>
                   </template>
                 </el-table-column>
-
-                <!-- 语言 -->
                 <el-table-column prop="language" label="语言" width="100" align="center">
                   <template #default="{ row }">
-                    <el-tag link type="primary">{{row.language}}</el-tag>
+                    <el-tag link type="primary">{{ row.language }}</el-tag>
                   </template>
                 </el-table-column>
-
-                <!-- 提交时间 -->
                 <el-table-column prop="submitTime" label="提交时间" min-width="160">
                   <template #default="{ row }">
                     <span>{{ formatTime(row.createTime) }}</span>
                   </template>
                 </el-table-column>
-
-                <!-- 操作 -->
                 <el-table-column label="操作" width="120" align="center" fixed="right">
                   <template #default="{ row }">
                     <el-button size="small" type="primary" text @click="viewCodeInEditor(row)">查看代码</el-button>
@@ -137,6 +124,110 @@
               </el-table>
             </div>
           </el-tab-pane>
+
+          <!-- ====== 4. 测试用例（✅ 放在 el-tabs 内部） ====== -->
+          <el-tab-pane label="测试用例" name="testcases">
+            <div class="testcase-editor">
+              <!-- 工具栏 -->
+              <div class="testcase-toolbar">
+                <el-button size="small" type="primary" @click="addTestCase">
+                  ＋ 添加用例
+                </el-button>
+                <el-button size="small" @click="resetToSample" plain>
+                  重置为样例
+                </el-button>
+                <el-button size="small" type="success" @click="handleDebug" :loading="debugging">
+                  ▶ 调试运行
+                </el-button>
+                <span class="testcase-hint">点击卡片查看结果 | 双击卡片编辑</span>
+              </div>
+
+              <!-- 用例卡片列表 -->
+              <div class="testcase-list">
+                <div
+                  v-for="(tc, index) in debugTestCases"
+                  :key="index"
+                  class="testcase-card"
+                  :class="{
+                    'is-active': selectedTestCaseIndex === index,
+                    'has-result': tc.result,
+                    'passed': tc.passed,
+                    'failed': tc.result && !tc.passed,
+                    'is-editing': editingTestCaseIndex === index
+                  }"
+                  @click="selectTestCase(index)"
+                  @dblclick="startEditTestCase(index)"
+                >
+                  <div class="testcase-card-header">
+                    <span class="testcase-card-index">用例 {{ index + 1 }}</span>
+                    <div class="testcase-card-actions">
+                      <el-button size="small" text type="primary" @click.stop="startEditTestCase(index)">
+                        ✏️ 编辑
+                      </el-button>
+                      <el-button size="small" text type="danger" class="testcase-card-delete" @click.stop="removeTestCase(index)">
+                        ✕
+                      </el-button>
+                    </div>
+                  </div>
+
+                  <!-- 预览模式 -->
+                  <template v-if="editingTestCaseIndex !== index">
+                    <div class="testcase-card-preview">
+                      {{ tc.input ? tc.input.slice(0, 40) + (tc.input.length > 40 ? '...' : '') : '（空）' }}
+                    </div>
+                    <div class="testcase-card-footer">
+                      <el-tag v-if="tc.result" type link="primary">
+                        {{ tc.result.submitStatus }}
+                      </el-tag>
+                      <el-tag v-else type="info" size="small">⏳ 等待</el-tag>
+                      <span v-if="tc.result" class="testcase-card-metrics">
+                        {{ tc.result.timeUsed || 0 }}ms
+                      </span>
+                    </div>
+                  </template>
+
+                  <!-- 编辑模式 -->
+                  <template v-else>
+                    <div class="testcase-edit-body">
+                      <div class="testcase-edit-input">
+                        <div class="testcase-edit-label">📥 输入</div>
+                        <el-input
+                          v-model="tc.input"
+                          type="textarea"
+                          :rows="2"
+                          placeholder="请输入测试输入"
+                          spellcheck="false"
+                          @click.stop
+                        />
+                      </div>
+                      <div class="testcase-edit-output">
+                        <div class="testcase-edit-label">📤 期望输出</div>
+                        <el-input
+                          v-model="tc.expectedOutput"
+                          type="textarea"
+                          :rows="2"
+                          placeholder="（留空则只显示实际输出）"
+                          spellcheck="false"
+                          @click.stop
+                        />
+                      </div>
+                      <div class="testcase-edit-actions">
+                        <el-button size="small" type="primary" @click.stop="finishEditTestCase">
+                          完成编辑
+                        </el-button>
+                        <el-button size="small" @click.stop="cancelEditTestCase">
+                          取消
+                        </el-button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <el-empty v-if="debugTestCases.length === 0" description="暂无测试用例，点击「添加用例」创建" />
+            </div>
+          </el-tab-pane>
+
         </el-tabs>
       </div>
 
@@ -159,11 +250,11 @@
             <el-option label="C#" value="csharp" />
             <el-option label="JavaScript" value="javascript" />
           </el-select>
-          <el-button  size="small" @click="handleSubmit" :loading="submitting">
+          <el-button size="small" @click="handleSubmit()" :loading="submitting">
             🚀 提交
           </el-button>
-          <el-button  size="small" @click="handleRun">▶️ 运行</el-button>
-          <el-button  size="small" @click="handleFormat">📐 格式化</el-button>
+          <el-button size="small" @click="handleRun">▶️ 运行</el-button>
+          <el-button size="small" @click="handleFormat">📐 格式化</el-button>
           <span class="editor-status" :class="{ 'is-typing': isTyping }">
             {{ editorStatus }}
           </span>
@@ -172,18 +263,14 @@
         <!-- Monaco Editor -->
         <div ref="editorContainer" class="editor-container"></div>
 
-        <!-- ====== 结果区 ====== -->
+        <!-- ====== 结果区（右侧详情） ====== -->
         <div class="result-wrapper" ref="resultWrapperRef" :style="{ height: resultHeight + 'px' }">
           <div class="result-resize-handle" @mousedown="startResizeResult">
             <div class="result-handle-line"></div>
           </div>
 
-          <div v-if="!judgeResult" class="result-placeholder">
-            <el-empty description="提交代码后，判题结果将显示在这里" :image-size="80" />
-          </div>
-
-          <div v-else class="result-area">
-            <!-- 状态栏 -->
+          <!-- 情况1：提交结果 -->
+          <div v-if="judgeResult" class="result-area">
             <div class="result-status-bar" :class="judgeResultClass">
               <div class="result-status-left">
                 <el-icon v-if="judgeResult.submitStatus === 'AC'" class="status-icon success">
@@ -202,7 +289,6 @@
               <el-button size="small" text @click="clearResult">✕ 关闭</el-button>
             </div>
 
-            <!-- AC 结果 -->
             <div v-if="judgeResult.submitStatus === 'AC'" class="result-content ac-content">
               <el-result icon="success" title="Accepted" sub-title="恭喜通过！">
                 <template #extra>
@@ -211,7 +297,6 @@
               </el-result>
             </div>
 
-            <!-- PENDING -->
             <div v-else-if="judgeResult.submitStatus === 'PENDING'" class="result-content">
               <el-result icon="info" title="判题中..." sub-title="请稍候">
                 <template #extra>
@@ -220,29 +305,17 @@
               </el-result>
             </div>
 
-            <!-- 错误状态 -->
             <div v-else class="result-content error-content">
-              <!-- 错误信息 -->
               <div class="error-section">
-                <div class="error-title">❌ 错误信息</div>
-                <el-alert
-                  :title="judgeResult.error || '未知错误'"
-                  type="error"
-                  show-icon
-                  :closable="false"
-                />
+                <div class="error-title" > 错误信息</div>
+                <el-alert :title="judgeResult.error || '未知错误'" type="error" show-icon :closable="false" />
               </div>
-                <!-- ✅ 显示原始日志 -->
-  <div v-if="judgeResult.log" class="log-section">
-    <div class="log-title">📋 完整日志</div>
-    <pre class="log-content">{{ judgeResult.log }}</pre>
-  </div>
-
-              <!-- 失败测试点 -->
+              <div v-if="judgeResult.log" class="log-section">
+                <div class="log-title">📋 完整日志</div>
+                <pre class="log-content">{{ judgeResult.log }}</pre>
+              </div>
               <div class="sample-section">
                 <div class="sample-title">📋 失败测试点</div>
-
-                <!-- 输入 -->
                 <el-card shadow="hover" class="sample-card input-card">
                   <template #header>
                     <div class="card-header">
@@ -252,8 +325,6 @@
                   </template>
                   <pre class="card-content">{{ parsedTestData.input || '（无）' }}</pre>
                 </el-card>
-
-                <!-- 期望输出 -->
                 <el-card shadow="hover" class="sample-card expected-card">
                   <template #header>
                     <div class="card-header">
@@ -263,8 +334,6 @@
                   </template>
                   <pre class="card-content expected">{{ parsedTestData.expected || '（无）' }}</pre>
                 </el-card>
-
-                <!-- 实际输出 -->
                 <el-card shadow="hover" class="sample-card actual-card">
                   <template #header>
                     <div class="card-header">
@@ -275,30 +344,88 @@
                   <pre class="card-content actual">{{ parsedTestData.actual || '（无输出）' }}</pre>
                 </el-card>
               </div>
-
-              <!-- 测试点概览 -->
               <div v-if="allTestCases && allTestCases.length > 1" class="summary-section">
                 <div class="summary-title">📊 测试点概览 ({{ allTestCases.length }})</div>
                 <div class="testcase-summary">
-                  <div
-                    v-for="(tc, index) in allTestCases"
-                    :key="index"
-                    class="testcase-dot"
+                  <div v-for="(tc, index) in allTestCases" :key="index" class="testcase-dot"
                     :class="tc.passed ? 'passed' : 'failed'"
-                    :title="`测试点 ${index + 1}: ${tc.passed ? '✅ 通过' : '❌ 失败'}`"
-                  >
+                    :title="`测试点 ${index + 1}: ${tc.passed ? '✅ 通过' : '❌ 失败'}`">
                     {{ index + 1 }}
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
+          <!-- 情况2：调试用例有结果 -->
+          <div v-else-if="selectedTestCase && selectedTestCase.result" class="result-area">
+            <div class="result-status-bar" :class="selectedTestCase.passed ? 'ac' : 'wa'">
+              <div class="result-status-left">
+                <el-icon v-if="selectedTestCase.passed" class="status-icon success">
+                  <CircleCheck />
+                </el-icon>
+                <el-icon v-else class="status-icon error">
+                  <CircleClose />
+                </el-icon>
+                <span class="status-text">{{ selectedTestCase.result.submitStatus }}</span>
+                <span class="status-metric">⏱️{{   selectedTestCase.result.timeUsed || 0 }}ms</span>
+                <span class="status-metric">💾 {{ selectedTestCase.result.memoryUsed ? (selectedTestCase.result.memoryUsed / 1024).toFixed(2) : '0' }}MB</span>
+              </div>
+              <el-button size="small" text @click="clearSelectedTestCase">✕ 关闭</el-button>
+            </div>
+            <div class="result-content">
+              <el-card shadow="hover" class="sample-card input-card">
+                <template #header>
+                  <div class="card-header">
+                    <span class="card-title">📥 输入</span>
+                    <el-button size="small" text @click="copyText(selectedTestCase.input)">复制</el-button>
+                  </div>
+                </template>
+                <pre class="card-content">{{ selectedTestCase.input || '（无）' }}</pre>
+              </el-card>
+              <el-card shadow="hover" class="sample-card expected-card">
+                <template #header>
+                  <div class="card-header">
+                    <span class="card-title">✅ 期望输出</span>
+                    <el-button size="small" text @click="copyText(selectedTestCase.expectedOutput)">复制</el-button>
+                  </div>
+                </template>
+                <pre class="card-content expected">{{ selectedTestCase.expectedOutput || '（无）' }}</pre>
+              </el-card>
+              <el-card shadow="hover" class="sample-card actual-card">
+                <template #header>
+                  <div class="card-header">
+                    <span class="card-title"> 实际输出</span>
+                    <el-button size="small" text @click="copyText(selectedTestCase.result.userOutput)">复制</el-button>
+                  </div>
+                </template>
+                <pre class="card-content actual">{{ selectedTestCase.result.userOutput || '（无输出）' }}</pre>
+              </el-card>
+              <div v-if="selectedTestCase.result.submitStatus !== 'AC'" class="error-section">
+                <div class="error-title" >❌ 错误信息</div>
+                <el-alert :title="selectedTestCase.result.errorMsg" type="error" show-icon :closable="false" />
+              </div>
+              <div v-if="selectedTestCase.result.log" class="log-section">
+                <div class="log-title">📋 完整日志</div>
+                <pre class="log-content">{{ selectedTestCase.result.log }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- 情况3：选中的用例还没有结果 -->
+          <div v-else-if="selectedTestCase && !selectedTestCase.result" class="result-placeholder">
+            <el-empty description="该用例尚未运行，请点击「调试运行」" :image-size="80" />
+          </div>
+
+          <!-- 情况4：默认 -->
+          <div v-else class="result-placeholder">
+            <el-empty description="提交代码或点击左侧用例查看详情" :image-size="80" />
+          </div>
         </div>
       </div>
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -365,6 +492,51 @@ const onLanguageChange = (lang: string) => {
     ElMessage.success(`已加载 ${lang} 的保存代码`)
   }
 }
+// ====== 提交代码 ======
+const handleSubmit = async () => {
+  if (!editor) { ElMessage.warning('编辑器未初始化'); return }
+  const code = editor.getValue()
+  if (!code.trim()) { ElMessage.warning('请先编写代码'); return }
+
+  saveCode(selectedLanguage.value, code)
+
+  const questionId = route.query.questionId
+  if (!questionId) { ElMessage.error('缺少题目 ID'); return }
+
+  submitting.value = true
+  judgeResult.value = {
+    submissionId: 0,
+    language: selectedLanguage.value,
+    code: code,
+    submitStatus: 'PENDING',
+    timeUsed: 0,
+    memoryUsed: 0
+  }
+  judgeProgress.value = 0
+
+  try {
+    const response: any = await questionApi.submitCode({
+      code: code,
+      language: selectedLanguage.value,
+      questionId: Number(questionId)
+    })
+    if (response.code === 200) {
+      ElMessage.success('代码已提交，等待判题...')
+      const interval = setInterval(() => {
+        if (judgeProgress.value < 90) { judgeProgress.value += 10 } else { clearInterval(interval) }
+      }, 300)
+    } else {
+      ElMessage.error(response.message || '提交失败')
+      submitting.value = false
+      judgeResult.value = null
+    }
+  } catch (error) {
+    console.error('提交失败:', error)
+    ElMessage.error('提交失败，请检查网络')
+    submitting.value = false
+    judgeResult.value = null
+  }
+}
 
 // ====== 判题结果 ======
 interface JudgeResultDTO {
@@ -379,18 +551,33 @@ interface JudgeResultDTO {
   timeUsed?: number
   memoryUsed?: number
   error?: string
-  log?:string
+  log?: string
 }
 
-interface TestCaseResult {
+// ====== 调试用例类型 ======
+interface DebugTestCase {
   input: string
   expectedOutput: string
-  actual: string
-  passed: boolean
+  result?: JudgeReturnRecordDto | null
+  passed?: boolean | null
+}
+
+// 后端返回的单个用例结果
+interface JudgeReturnRecordDto {
+  userId?: number
+  errorMsg?: string
+  log?: string
+  submitStatus?: string
+  userOutput?: string
+  failIndex?: number
+  inputData?: string
+  expectedOutput?: string
+  timeUsed?: number
+  memoryUsed?: number
 }
 
 const judgeResult = ref<JudgeResultDTO | null>(null)
-const allTestCases = ref<TestCaseResult[]>([])
+const allTestCases = ref<any[]>([])
 
 // ====== 状态映射 ======
 const statusMap: Record<string, { text: string; cls: string }> = {
@@ -482,13 +669,11 @@ const renderContent = (content: string) => {
   return content.replace(/\n/g, '<br>')
 }
 
-// ====== 获取提交记录（点击标签时触发） ======
+// ====== 获取提交记录 ======
 const loadSubmissions = async () => {
   if (submissionsLoaded.value) return
-
   const questionId: any = route.query.questionId
   if (!questionId) return
-
   submissionsLoading.value = true
   try {
     const response: any = await questionApi.getSubmitRecord(questionId)
@@ -503,63 +688,43 @@ const loadSubmissions = async () => {
   }
 }
 
-// ====== 标签切换事件 ======
 const handleTabClick = (tab: any) => {
   if (tab.paneName === 'submissions') {
     loadSubmissions()
   }
 }
 
-// ====== 查看代码 - 在编辑器中显示 ======
+// ====== 查看代码 ======
 const viewCodeInEditor = (row: any) => {
   if (!editor) {
     ElMessage.warning('编辑器未初始化')
     return
   }
-
   editor.setValue(row.submitContent || '// 暂无代码')
-
   const languageMap: Record<string, string> = {
-    'cpp': 'cpp',
-    'c': 'c',
-    'java': 'java',
-    'python': 'python',
-    'python3': 'python',
-    'python2': 'python',
-    'go': 'go',
-    'csharp': 'csharp',
-    'javascript': 'javascript'
+    'cpp': 'cpp', 'c': 'c', 'java': 'java', 'python': 'python',
+    'python3': 'python', 'python2': 'python', 'go': 'go',
+    'csharp': 'csharp', 'javascript': 'javascript'
   }
   const lang = languageMap[row.language?.toLowerCase()] || 'cpp'
   monaco.editor.setModelLanguage(editor.getModel()!, lang)
   selectedLanguage.value = row.language?.toLowerCase() || 'cpp'
-
   ElMessage.success('已加载代码到编辑器')
 }
 
-// ====== 状态颜色 ======
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
-    'AC': 'success',
-    'WA': 'danger',
-    'TLE': 'warning',
-    'RE': 'danger',
-    'CE': 'info',
-    'PENDING': 'warning'
+    'AC': 'success', 'WA': 'danger', 'TLE': 'warning',
+    'RE': 'danger', 'CE': 'info', 'PENDING': 'warning'
   }
   return map[status] || 'info'
 }
 
-// ====== 时间格式化 ======
 const formatTime = (time: string) => {
   if (!time) return '-'
   return new Date(time).toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
   })
 }
 
@@ -572,6 +737,8 @@ const loadQuestion = async () => {
     const response: any = await questionApi.getQuestionById(questionId)
     if (response.code === 200) {
       questionData.value = response.data
+      initDebugCases()
+      hasUserModified.value = false  // ✅ 确保标记为 false
       const savedCode = loadCode(selectedLanguage.value)
       if (savedCode) {
         setTimeout(() => { if (editor) editor.setValue(savedCode) }, 500)
@@ -584,7 +751,6 @@ const loadQuestion = async () => {
     ElMessage.error('加载失败，请检查网络')
   } finally { loading.value = false }
 }
-
 // ====== 初始化 Monaco Editor ======
 const initEditor = () => {
   if (!editorContainer.value) return
@@ -628,7 +794,6 @@ const initEditor = () => {
   editorStatus.value = '就绪'
 }
 
-// ====== 获取默认代码模板 ======
 const getDefaultCode = (lang: string): string => {
   const templates: Record<string, string> = {
     cpp: `#include <iostream>\nusing namespace std;\n\nint main() {\n    // 请在这里编写代码\n    cout << "Hello, World!" << endl;\n    return 0;\n}`,
@@ -664,11 +829,9 @@ watch(selectedLanguage, (newLang) => {
 // ====== 解析错误信息 ======
 const parseErrorMsg = (errorMsg: string) => {
   if (!errorMsg) return { input: '', expected: '', actual: '' }
-
   const inputMatch = errorMsg.match(/输入:\s*([\s\S]*?)\s*输出:/)
   const outputMatch = errorMsg.match(/输出:\s*([\s\S]*?)\s*预期:/)
   const expectedMatch = errorMsg.match(/预期:\s*([\s\S]*?)$/)
-
   return {
     input: inputMatch ? inputMatch[1].trim() : '',
     expected: expectedMatch ? expectedMatch[1].trim() : '',
@@ -676,10 +839,8 @@ const parseErrorMsg = (errorMsg: string) => {
   }
 }
 
-// ====== 解析后的测试点数据 ======
 const parsedTestData = computed(() => {
   if (!judgeResult.value) return { input: '', expected: '', actual: '' }
-
   if (judgeResult.value.inputData) {
     return {
       input: judgeResult.value.inputData,
@@ -687,83 +848,73 @@ const parsedTestData = computed(() => {
       actual: judgeResult.value.userOutput || ''
     }
   }
-
   return parseErrorMsg(judgeResult.value.error || '')
 })
-
+// ====== 调试相关 ======
+const hasUserModified = ref(false)  // ✅ 新增：标记用户是否手动修改过用例
 // ====== WebSocket ======
-const setupWebSocket = () => {
-  const token: any = localStorage.getItem('token')
-  const userId: any = localStorage.getItem('userId')
-  const wsUrl = `ws://localhost:8084/websocket?token=${token}`
-  websocketService.connect(wsUrl, token)
-
-  const eventName = `/queue/judge-result-${userId}`
-  console.log('📡 监听事件:', eventName)
-
-   websocketService.on('judge-result', (data: JudgeResultDTO) => {
-    console.log('📩📩📩 监听器被触发！', data)  
-    console.log('📩 收到判题结果:', data)
-    judgeResult.value = data
-    judgeProgress.value = 100
-    if (data.submitStatus === 'AC') {
-      ElMessage.success('🎉 恭喜通过！')
-    } else if (data.submitStatus === 'PENDING') {
-      ElMessage.info('判题中...')
-    } else {
-      ElMessage.error(`❌ ${statusMap[data.submitStatus]?.text || data.submitStatus}`)
-    }
-    submitting.value = false
-  })
-}
-
-// ====== 提交代码 ======
-const handleSubmit = async () => {
-  if (!editor) { ElMessage.warning('编辑器未初始化'); return }
-  const code = editor.getValue()
-  if (!code.trim()) { ElMessage.warning('请先编写代码'); return }
-
-  saveCode(selectedLanguage.value, code)
-
-  const questionId = route.query.questionId
-  if (!questionId) { ElMessage.error('缺少题目 ID'); return }
-
-  submitting.value = true
-  judgeResult.value = {
-    submissionId: 0,
-    language: selectedLanguage.value,
-    code: code,
-    submitStatus: 'PENDING',
-    timeUsed: 0,
-    memoryUsed: 0
-  }
-  judgeProgress.value = 0
-
+// QuestionDetailView.vue - setupWebSocket
+const setupWebSocket = async () => {
   try {
-    const response: any = await questionApi.submitCode({
-      code: code,
-      language: selectedLanguage.value,
-      questionId: Number(questionId)
-    })
-    if (response.code === 200) {
-      ElMessage.success('代码已提交，等待判题...')
-      const interval = setInterval(() => {
-        if (judgeProgress.value < 90) { judgeProgress.value += 10 } else { clearInterval(interval) }
-      }, 300)
-    } else {
-      ElMessage.error(response.message || '提交失败')
-      submitting.value = false
-      judgeResult.value = null
+    const token: any = localStorage.getItem('token')
+    const userId: any = localStorage.getItem('userId')
+    if (!token || !userId) {
+      console.warn('⚠️ 未登录，跳过 WebSocket 连接')
+      return
     }
+
+    // ✅ 使用 ws:// 协议
+    const wsUrl = `ws://localhost:8084/websocket?token=${token}`
+    console.log('📡 准备连接 WebSocket:', wsUrl)
+
+    // ✅ 等待连接完成
+    await websocketService.connect(wsUrl, token)
+    console.log('✅ WebSocket 已连接')
+
+    // ✅ 订阅判题结果
+    websocketService.on('judge-result', (data: JudgeResultDTO) => {
+      console.log('📩 收到判题结果:', data)
+      judgeResult.value = data
+      judgeProgress.value = 100
+      if (data.submitStatus === 'AC') {
+        ElMessage.success('🎉 恭喜通过！')
+      } else if (data.submitStatus === 'PENDING') {
+        ElMessage.info('判题中...')
+      } else {
+        ElMessage.error(`❌ ${statusMap[data.submitStatus]?.text || data.submitStatus}`)
+      }
+      submitting.value = false
+    })
+
+    // ✅ 订阅调试结果
+    websocketService.on('debug-judge-result', (results: JudgeReturnRecordDto[]) => {
+      console.log('📩 收到调试结果:', results)
+
+      debugTestCases.value.forEach((tc, index) => {
+        if (index < results.length) {
+          tc.result = results[index]
+          tc.passed = tc.expectedOutput?.trim() === results[index].userOutput?.trim()
+        }
+      })
+
+      const firstResultIndex = debugTestCases.value.findIndex(tc => tc.result)
+      if (firstResultIndex !== -1) {
+        selectedTestCaseIndex.value = firstResultIndex
+      }
+      debugging.value = false
+      ElMessage.success(`调试完成，共 ${results.length} 个用例`)
+    })
+
   } catch (error) {
-    console.error('提交失败:', error)
-    ElMessage.error('提交失败，请检查网络')
-    submitting.value = false
-    judgeResult.value = null
+    console.error('❌ WebSocket 连接失败:', error)
+    // 3秒后重试
+    setTimeout(() => {
+      console.log('🔄 重试 WebSocket 连接...')
+      setupWebSocket()
+    }, 3000)
   }
 }
 
-// ====== 格式化 ======
 const handleFormat = () => {
   if (!editor) { ElMessage.warning('编辑器未初始化'); return }
   try {
@@ -783,18 +934,11 @@ const clearResult = () => {
   judgeProgress.value = 0
 }
 
-// QuestionDetailView.vue - 保存表格滚动位置
-const goBack = () => {
-
-  router.back()
-}
+const goBack = () => { router.back() }
 
 // ====== 复制文本 ======
-const copyText = (text: string) => {
-  if (!text) {
-    ElMessage.warning('没有内容可复制')
-    return
-  }
+const copyText = (text: any) => {
+  if (!text) { ElMessage.warning('没有内容可复制'); return }
   navigator.clipboard.writeText(text).then(() => {
     ElMessage.success('✅ 已复制到剪贴板')
   }).catch(() => {
@@ -862,11 +1006,9 @@ const onResizeResult = (e: MouseEvent) => {
   const rect = resultWrapperRef.value.getBoundingClientRect()
   const containerRect = document.querySelector('.right-panel')?.getBoundingClientRect()
   if (!containerRect) return
-
   const newHeight = containerRect.bottom - e.clientY - 10
   const minHeight = 150
   const maxHeight = containerRect.height * 0.6
-
   if (newHeight > minHeight && newHeight < maxHeight) {
     resultHeight.value = newHeight
     resultWrapperRef.value.style.height = newHeight + 'px'
@@ -882,10 +1024,182 @@ const stopResizeResult = () => {
   document.body.style.userSelect = ''
 }
 
+// ====== 调试相关 ======
+const debugTestCases = ref<DebugTestCase[]>([])
+const debugging = ref(false)
+const selectedTestCaseIndex = ref<number | null>(null)
+const editingTestCaseIndex = ref<number | null>(null)  // ✅ 正在编辑的用例索引
+
+
+// ====== 编辑模式 ======
+// 开始编辑
+const startEditTestCase = (index: number) => {
+  editingTestCaseIndex.value = index
+}
+
+// 完成编辑
+const finishEditTestCase = () => {
+  editingTestCaseIndex.value = null
+  hasUserModified.value = true
+  ElMessage.success('用例已更新')
+}
+
+// 取消编辑
+const cancelEditTestCase = () => {
+  // 如果用户没有修改过，恢复原来的值
+  // 由于 v-model 已经双向绑定，取消时只需要退出编辑模式
+  editingTestCaseIndex.value = null
+}
+
+// 选择用例（查看结果）
+const selectTestCase = (index: number) => {
+  // 如果正在编辑，不切换
+  if (editingTestCaseIndex.value !== null) return
+
+  selectedTestCaseIndex.value = index
+  if (!debugTestCases.value[index].result) {
+    ElMessage.info('该用例尚未运行，请点击「调试运行」')
+  }
+}
+// 选中的测试用例（计算属性）
+const selectedTestCase = computed(() => {
+  if (selectedTestCaseIndex.value === null) return null
+  return debugTestCases.value[selectedTestCaseIndex.value] || null
+})
+
+
+// 从题目样例初始化
+const initDebugCases = () => {
+  const samples = sampleCases.value
+  if (samples.length > 0 && samples[0].inputData !== '（无）') {
+    debugTestCases.value = samples.map(s => ({
+      input: s.inputData,
+      expectedOutput: s.expectedOutput,
+      result: null,
+      passed: null
+    }))
+  } else {
+    debugTestCases.value = [{ input: '', expectedOutput: '', result: null, passed: null }]
+  }
+  selectedTestCaseIndex.value = null
+  hasUserModified.value = false  // ✅ 重置标记
+}
+
+
+// 清空选中的用例
+const clearSelectedTestCase = () => {
+  selectedTestCaseIndex.value = null
+}
+
+// 添加用例
+const addTestCase = () => {
+  debugTestCases.value.push({ input: '', expectedOutput: '', result: null, passed: null })
+  selectedTestCaseIndex.value = debugTestCases.value.length - 1
+  hasUserModified.value = true  // ✅ 标记用户已修改
+}
+
+// 删除用例
+const removeTestCase = (index: number) => {
+  if (debugTestCases.value.length <= 1) {
+    ElMessage.warning('至少保留一个用例')
+    return
+  }
+  debugTestCases.value.splice(index, 1)
+  hasUserModified.value = true  // ✅ 标记用户已修改
+  if (selectedTestCaseIndex.value === index) {
+    selectedTestCaseIndex.value = null
+  } else if (selectedTestCaseIndex.value !== null && selectedTestCaseIndex.value > index) {
+    selectedTestCaseIndex.value--
+  }
+}
+// 重置为样例
+// 重置为样例
+const resetToSample = () => {
+  initDebugCases()
+  hasUserModified.value = false  // ✅ 重置标记
+  ElMessage.success('已重置为题目样例')
+}
+// ====== 监听 sampleCases 变化，自动更新调试用例 ======
+watch(sampleCases, (newSamples) => {
+  // 如果用户没有手动修改过用例，自动更新
+  if (!hasUserModified.value && newSamples.length > 0 && newSamples[0].inputData !== '（无）') {
+    initDebugCases()
+  }
+}, { deep: true })
+// ====== 调试运行 ======
+const handleDebug = async () => {
+  // 1. 检查用例输入
+  const emptyCases = debugTestCases.value.some(tc => !tc.input.trim())
+  if (emptyCases) {
+    ElMessage.warning('请填写所有用例的输入')
+    return
+  }
+
+  // 2. 检查编辑器
+  if (!editor) {
+    ElMessage.warning('编辑器未初始化')
+    return
+  }
+  const code = editor.getValue()
+  if (!code.trim()) {
+    ElMessage.warning('请先编写代码')
+    return
+  }
+
+  // 3. 保存用户修改标记，清空旧结果
+  const wasUserModified = hasUserModified.value
+  debugTestCases.value.forEach(tc => {
+    tc.result = null
+    tc.passed = null
+  })
+  selectedTestCaseIndex.value = null
+  debugging.value = true
+
+  try {
+    // 4. 发送调试请求
+    const response: any = await questionApi.debug({
+      userId: localStorage.getItem('userId'),
+      code: code,
+      language: selectedLanguage.value,
+      questionId: Number(route.query.questionId),
+      tests: debugTestCases.value.map(tc => ({
+        input: tc.input,
+        output: tc.expectedOutput || ''
+      }))
+    })
+
+    // 5. 处理响应
+    if (response.code === 200) {
+      const results = response.data || []
+      debugTestCases.value.forEach((tc, index) => {
+        if (index < results.length) {
+          tc.result = results[index]
+          tc.passed = tc.expectedOutput?.trim() === results[index].userOutput?.trim()
+        }
+      })
+      const firstResultIndex = debugTestCases.value.findIndex(tc => tc.result)
+      if (firstResultIndex !== -1) {
+        selectedTestCaseIndex.value = firstResultIndex
+      }
+      ElMessage.success(`调试完成，共 ${results.length} 个用例`)
+    } else {
+      ElMessage.error(response.message || '调试失败')
+    }
+  } catch (error) {
+    console.error('调试失败:', error)
+    ElMessage.error('调试请求失败')
+  } finally {
+    debugging.value = false
+    // 6. 恢复用户修改标记
+    hasUserModified.value = wasUserModified
+  }
+}
+
 // ====== 生命周期 ======
-onMounted(() => {
-  loadQuestion()
-  setupWebSocket()
+onMounted(async () => {
+  await loadQuestion()
+  // WebSocket 初始化不阻塞页面
+  setupWebSocket().catch(e => console.error('WebSocket 初始化失败:', e))
   nextTick(() => { calculateWidths(); initEditor() })
   window.addEventListener('resize', () => { calculateWidths(); nextTick(() => { editor?.layout() }) })
 })
@@ -923,10 +1237,29 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   height: 56px;
 }
-.navbar-left { display: flex; align-items: center; gap: 12px; }
-.navbar-title { font-size: 16px; font-weight: 600; color: #303133; }
-.navbar-id { font-size: 13px; color: #909399; }
-.navbar-right { display: flex; align-items: center; gap: 8px; }
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.navbar-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.navbar-id {
+  font-size: 13px;
+  color: #909399;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 /* ====== 主容器 ====== */
 .main-container {
@@ -948,8 +1281,15 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overflow-x: hidden;
 }
-.left-panel::-webkit-scrollbar { width: 6px; }
-.left-panel::-webkit-scrollbar-thumb { background: #d8dce5; border-radius: 3px; }
+
+.left-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.left-panel::-webkit-scrollbar-thumb {
+  background: #d8dce5;
+  border-radius: 3px;
+}
 
 /* ====== Tabs 容器 ====== */
 .tabs {
@@ -998,6 +1338,7 @@ onBeforeUnmount(() => {
 .submissions-loading {
   padding: 20px;
 }
+
 /* ====== 右面板 ====== */
 .right-panel {
   flex-shrink: 0;
@@ -1011,8 +1352,14 @@ onBeforeUnmount(() => {
   border-radius: 0 0 8px 0;
 }
 
-.right-panel::-webkit-scrollbar { width: 4px; }
-.right-panel::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+.right-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.right-panel::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 2px;
+}
 
 /* ====== 拖拽手柄 ====== */
 .resize-handle {
@@ -1025,7 +1372,11 @@ onBeforeUnmount(() => {
   justify-content: center;
   transition: background 0.2s;
 }
-.resize-handle:hover { background: #409eff; }
+
+.resize-handle:hover {
+  background: #409eff;
+}
+
 .handle-line {
   width: 2px;
   height: 40px;
@@ -1033,7 +1384,10 @@ onBeforeUnmount(() => {
   border-radius: 2px;
   transition: background 0.2s;
 }
-.resize-handle:hover .handle-line { background: #fff; }
+
+.resize-handle:hover .handle-line {
+  background: #fff;
+}
 
 /* ====== 编辑器工具栏 ====== */
 .editor-toolbar {
@@ -1045,13 +1399,17 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid #3c3c3c;
   flex-shrink: 0;
 }
+
 .editor-status {
   margin-left: auto;
   font-size: 12px;
   color: #d5cdcd;
   transition: color 0.3s;
 }
-.editor-status.is-typing { color: #409eff; }
+
+.editor-status.is-typing {
+  color: #409eff;
+}
 
 .editor-container {
   flex: 1;
@@ -1076,10 +1434,18 @@ onBeforeUnmount(() => {
   flex: 1;
   overflow-y: auto;
   padding: 10px 14px;
-  min-height: 0;
+  min-height: 0; 
+  max-height: 100%; 
 }
-.result-area::-webkit-scrollbar { width: 4px; }
-.result-area::-webkit-scrollbar-thumb { background: #d8dce5; border-radius: 2px; }
+
+.result-area::-webkit-scrollbar {
+  width: 4px;
+}
+
+.result-area::-webkit-scrollbar-thumb {
+  background: #d8dce5;
+  border-radius: 2px;
+}
 
 /* ====== 结果区拖拽手柄 ====== */
 .result-resize-handle {
@@ -1094,7 +1460,11 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 10;
 }
-.result-resize-handle:hover { background: #409eff; }
+
+.result-resize-handle:hover {
+  background: #409eff;
+}
+
 .result-handle-line {
   width: 40px;
   height: 3px;
@@ -1102,7 +1472,10 @@ onBeforeUnmount(() => {
   border-radius: 2px;
   transition: background 0.2s;
 }
-.result-resize-handle:hover .result-handle-line { background: #fff; }
+
+.result-resize-handle:hover .result-handle-line {
+  background: #fff;
+}
 
 /* ====== 状态栏 ====== */
 .result-status-bar {
@@ -1121,23 +1494,61 @@ onBeforeUnmount(() => {
   gap: 10px;
   flex-wrap: wrap;
 }
-.status-icon { font-size: 22px; }
-.status-icon.success { color: #67c23a; }
-.status-icon.error { color: #f56c6c; }
-.status-icon.pending { color: #e6a23c; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.status-text { font-size: 15px; font-weight: 600; color: #303133; }
-.status-metric { font-size: 13px; color: #909399; }
 
-.result-wrapper.ac .result-status-bar { border-bottom-color: #67c23a; }
+.status-icon {
+  font-size: 22px;
+}
+
+.status-icon.success {
+  color: #67c23a;
+}
+
+.status-icon.error {
+  color: #f56c6c;
+}
+
+.status-icon.pending {
+  color: #e6a23c;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.status-metric {
+  font-size: 13px;
+  color: #909399;
+}
+
+.result-wrapper.ac .result-status-bar {
+  border-bottom-color: #67c23a;
+}
+
 .result-wrapper.wa .result-status-bar,
 .result-wrapper.re .result-status-bar,
 .result-wrapper.ce .result-status-bar,
-.result-wrapper.tle .result-status-bar { border-bottom-color: #f56c6c; }
-.result-wrapper.pending .result-status-bar { border-bottom-color: #e6a23c; }
+.result-wrapper.tle .result-status-bar {
+  border-bottom-color: #f56c6c;
+}
+
+.result-wrapper.pending .result-status-bar {
+  border-bottom-color: #e6a23c;
+}
 
 /* ====== 题目样式 ====== */
-.tabs { height: 100%; }
+.tabs {
+  height: 100%;
+}
+
 .tabs :deep(.el-tabs__header) {
   margin: 0 0 20px 0;
   position: sticky;
@@ -1146,6 +1557,7 @@ onBeforeUnmount(() => {
   z-index: 10;
   padding-top: 16px;
 }
+
 .tabs :deep(.el-tabs__item) {
   font-size: 15px;
   font-weight: 500;
@@ -1160,11 +1572,28 @@ onBeforeUnmount(() => {
   padding-bottom: 16px;
   border-bottom: 1px solid #f0f0f0;
 }
-.question-id { font-size: 13px; color: #909399; }
-.question-title { font-size: 22px; font-weight: 700; color: #303133; }
-.meta-info { font-size: 13px; color: #909399; margin-left: auto; }
 
-.section { margin-bottom: 28px; }
+.question-id {
+  font-size: 13px;
+  color: #909399;
+}
+
+.question-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.meta-info {
+  font-size: 13px;
+  color: #909399;
+  margin-left: auto;
+}
+
+.section {
+  margin-bottom: 28px;
+}
+
 .section-title {
   font-size: 16px;
   font-weight: 600;
@@ -1177,7 +1606,11 @@ onBeforeUnmount(() => {
   line-height: 1.9;
   color: #303133;
 }
-.markdown-body p { margin: 10px 0; }
+
+.markdown-body p {
+  margin: 10px 0;
+}
+
 .markdown-body code {
   background: #f5f7fa;
   padding: 2px 8px;
@@ -1185,6 +1618,7 @@ onBeforeUnmount(() => {
   font-family: 'JetBrains Mono', monospace;
   font-size: 14px;
 }
+
 .markdown-body pre {
   background: #1e1e1e;
   color: #d4d4d4;
@@ -1194,12 +1628,16 @@ onBeforeUnmount(() => {
   font-size: 14px;
   line-height: 1.7;
 }
+
 .markdown-body ul,
 .markdown-body ol {
   padding-left: 24px;
   margin: 10px 0;
 }
-.markdown-body li { margin: 4px 0; }
+
+.markdown-body li {
+  margin: 4px 0;
+}
 
 .sample-grid {
   display: grid;
@@ -1207,12 +1645,14 @@ onBeforeUnmount(() => {
   gap: 14px;
   margin-top: 8px;
 }
+
 .sample-box {
   background: #f5f7fa;
   border-radius: 8px;
   padding: 14px 18px;
   border: 1px solid #e4e7ed;
 }
+
 .sample-box pre {
   font-family: 'JetBrains Mono', monospace;
   font-size: 14px;
@@ -1222,6 +1662,7 @@ onBeforeUnmount(() => {
   word-break: break-all;
   line-height: 1.6;
 }
+
 .sample-label {
   font-size: 13px;
   font-weight: 600;
@@ -1244,12 +1685,14 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
   flex-shrink: 0;
 }
+
 .error-title {
   font-size: 12px;
   font-weight: 600;
   color: #f56c6c;
   margin-bottom: 2px;
 }
+
 .error-section .el-alert {
   padding: 4px 10px;
   font-size: 12px;
@@ -1259,6 +1702,7 @@ onBeforeUnmount(() => {
   margin-bottom: 6px;
   flex-shrink: 0;
 }
+
 .sample-title {
   font-size: 12px;
   font-weight: 600;
@@ -1270,11 +1714,16 @@ onBeforeUnmount(() => {
   background: #fafafa;
   margin-bottom: 4px;
 }
-.sample-card:last-child { margin-bottom: 0; }
+
+.sample-card:last-child {
+  margin-bottom: 0;
+}
+
 .sample-card :deep(.el-card__header) {
   padding: 2px 8px;
   border-bottom: 1px solid #f0f0f0;
 }
+
 .sample-card :deep(.el-card__body) {
   padding: 4px 8px;
 }
@@ -1284,13 +1733,23 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
 }
+
 .card-title {
   font-size: 12px;
   font-weight: 600;
 }
-.input-card .card-title { color: #409eff; }
-.expected-card .card-title { color: #67c23a; }
-.actual-card .card-title { color: #f56c6c; }
+
+.input-card .card-title {
+  color: #409eff;
+}
+
+.expected-card .card-title {
+  color: #67c23a;
+}
+
+.actual-card .card-title {
+  color: #f56c6c;
+}
 
 .card-content {
   font-family: 'JetBrains Mono', monospace;
@@ -1303,28 +1762,35 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   padding: 2px 0;
 }
+
 .card-content.expected {
   border-left: 3px solid #67c23a;
   padding-left: 6px;
 }
+
 .card-content.actual {
   border-left: 3px solid #f56c6c;
   padding-left: 6px;
 }
 
 /* ====== 测试点概览 ====== */
-.summary-section { margin-top: 4px; }
+.summary-section {
+  margin-top: 4px;
+}
+
 .summary-title {
   font-size: 13px;
   font-weight: 600;
   color: #303133;
   margin-bottom: 6px;
 }
+
 .testcase-summary {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
+
 .testcase-dot {
   width: 28px;
   height: 28px;
@@ -1337,8 +1803,14 @@ onBeforeUnmount(() => {
   color: #fff;
   cursor: pointer;
 }
-.testcase-dot.passed { background: #67c23a; }
-.testcase-dot.failed { background: #f56c6c; }
+
+.testcase-dot.passed {
+  background: #67c23a;
+}
+
+.testcase-dot.failed {
+  background: #f56c6c;
+}
 
 /* ====== 提交记录 ====== */
 .submissions-list {
@@ -1365,17 +1837,20 @@ onBeforeUnmount(() => {
 .submissions-list :deep(.el-table__row:hover) {
   background: #f0f2f5;
 }
+
 /* ====== 日志区域 ====== */
 .log-section {
   margin-bottom: 8px;
   flex-shrink: 0;
 }
+
 .log-title {
   font-size: 12px;
   font-weight: 600;
   color: #303133;
   margin-bottom: 4px;
 }
+
 .log-content {
   font-family: 'JetBrains Mono', 'Courier New', monospace;
   font-size: 11px;
@@ -1392,15 +1867,307 @@ onBeforeUnmount(() => {
   margin: 0;
   border: 1px solid #333;
 }
-.log-content::-webkit-scrollbar { width: 4px; }
-.log-content::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+
+.log-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.log-content::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 2px;
+}
+
+/* ====== 测试用例编辑器 ====== */
+.testcase-editor {
+  padding: 4px 0;
+}
+
+.testcase-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.testcase-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-left: auto;
+}
+
+.testcase-item {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  border: 1px solid #e4e7ed;
+}
+
+.testcase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.testcase-index {
+  font-weight: 600;
+  font-size: 14px;
+  color: #303133;
+}
+
+.testcase-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.testcase-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+  margin-bottom: 4px;
+}
+
+.testcase-body .el-textarea {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.testcase-result {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #d8dce5;
+  background: #fff;
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.result-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.result-label {
+  color: #909399;
+  flex-shrink: 0;
+}
+
+.result-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #1a1a2e;
+  color: #d4d4d4;
+  padding: 6px 10px;
+  border-radius: 4px;
+  flex: 1;
+}
+
+.result-error {
+  color: #f56c6c;
+  font-size: 13px;
+}
+
+.result-metrics {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+/* ====== 测试用例卡片列表 ====== */
+.testcase-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.testcase-card {
+  background: #f5f7fa;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.testcase-card:hover {
+  background: #eef2f7;
+  border-color: #d8dce5;
+}
+
+.testcase-card.is-active {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.testcase-card.passed {
+  border-left: 4px solid #67c23a;
+}
+
+.testcase-card.failed {
+  border-left: 4px solid #f56c6c;
+}
+
+.testcase-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.testcase-card-index {
+  font-weight: 600;
+  font-size: 13px;
+  color: #303133;
+}
+
+.testcase-card-delete {
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.testcase-card-delete:hover {
+  opacity: 1;
+}
+
+.testcase-card-preview {
+  font-size: 13px;
+  color: #606266;
+  margin: 4px 0;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.testcase-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.testcase-card-metrics {
+  font-size: 12px;
+  color: #909399;
+}
+/* ====== 编辑模式 ====== */
+.testcase-card.is-editing {
+  border-color: #409eff;
+  background: #ecf5ff;
+  cursor: default;
+}
+
+.testcase-card.is-editing:hover {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.testcase-edit-body {
+  width: 100%;
+  padding: 4px 0;
+}
+
+.testcase-edit-input,
+.testcase-edit-output {
+  margin-bottom: 8px;
+}
+
+.testcase-edit-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #606266;
+  margin-bottom: 2px;
+}
+
+.testcase-edit-body .el-textarea {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.testcase-edit-body .el-textarea :deep(textarea) {
+  font-size: 13px;
+  background: #fff;
+}
+
+.testcase-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.testcase-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.testcase-card-actions .el-button {
+  padding: 0 4px;
+  font-size: 12px;
+}
+/* ====== 测试用例编辑器 ====== */
+.testcase-editor {
+  padding: 4px 0;
+}
+
+.testcase-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.testcase-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .testcase-body {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ====== 响应式 ====== */
 @media (max-width: 1024px) {
-  .main-container { flex-direction: column; }
-  .left-panel, .right-panel { width: 100% !important; height: auto; min-height: 300px; }
-  .resize-handle { display: none; }
-  .sample-grid { grid-template-columns: 1fr; }
-  .question-header { flex-direction: column; align-items: flex-start; }
-  .meta-info { margin-left: 0; }
+  .main-container {
+    flex-direction: column;
+  }
+
+  .left-panel,
+  .right-panel {
+    width: 100% !important;
+    height: auto;
+    min-height: 300px;
+  }
+
+  .resize-handle {
+    display: none;
+  }
+
+  .sample-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .question-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .meta-info {
+    margin-left: 0;
+  }
 }
 </style>

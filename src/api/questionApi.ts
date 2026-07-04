@@ -4,7 +4,23 @@ export interface JudgeRequest {
   language: string
   questionId: number
 }
+// types/debug.ts
+export interface DebugTestCase {
+  input: string
+  expectedOutput: string
+  result?: DebugResult | null
+}
 
+export interface DebugResult {
+  input: string
+  expectedOutput: string
+  actualOutput: string
+  passed: boolean | null  // null 表示没填期望输出，不判断
+  exitCode: number
+  errorMsg: string
+  timeUsed: number
+  memoryUsed: number
+}
 export interface JudgeResult {
   submitRecordId: number
   status: 'AC' | 'WA' | 'TLE' | 'MLE' | 'RE' | 'CE' | 'PENDING'
@@ -31,6 +47,9 @@ const questionApi={
       },
        getSubmitRecord(questionId:number){
       return request.get('/question/getsubmitrecordsbyquestionid',{params:{questionId}})
+    },
+    debug(data: { userId: string; code: string; language: string; questionId: number; tests: DebugTestCase[] }) {
+      return request.post('/question/debug', data)
     }
 }
    

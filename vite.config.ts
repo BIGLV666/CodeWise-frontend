@@ -19,18 +19,24 @@ export default defineConfig({
       })],
     }),
   ],
+  // ✅ define 放在 plugins 外面，和 resolve 同级
+  define: {
+    global: 'window',      // 修复 global is not defined
+    'process.env': {},     // 修复其他 Node.js 变量
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // ✅ 强制使用浏览器版本
+      'sockjs-client': 'sockjs-client/dist/sockjs.min.js',
     },
   },
   server: {
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8082',  // 后端服务地址
+        target: 'http://localhost:8082',
         changeOrigin: true,
-        // 如果需要去掉 /api 前缀，取消注释
         // rewrite: (path) => path.replace(/^\/api/, '')
       }
     }

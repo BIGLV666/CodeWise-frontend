@@ -7,17 +7,19 @@ class WebSocketService {
 
   connect(url: string, token: string) {
     const userId = localStorage.getItem('userId')
-    const queueName = `/queue/judge-result-${userId}`
+    const judgeQueue = `/queue/judge-result-${userId}`
+    const debugQueue = `/queue/debug-judge-result-${userId}`
     
     console.log('🔌 WebSocket 连接中...')
-    console.log('📡 订阅队列:', queueName)
+    console.log('📡 订阅判题队列:', judgeQueue)
+    console.log('📡 订阅调试队列:', debugQueue)
 
     this.client = new Client({
       brokerURL: url,
       connectHeaders: {
         'Authorization': `Bearer ${token}`
       },
-      debug: (str) => console.log('📡', str),  // ✅ 临时开启 debug
+      debug: (str) => console.log('📡', str),
       reconnectDelay: 3000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
@@ -26,14 +28,23 @@ class WebSocketService {
     this.client.onConnect = () => {
       console.log('✅ WebSocket 连接成功')
       
-      // ✅ 订阅
-      this.client?.subscribe(queueName, (message) => {
-        console.log('📩📩📩 收到消息！')
-        console.log('📩 消息体:', message.body)
+      // ✅ 订阅判题结果
+      this.client?.subscribe(judgeQueue, (message) => {
+        console.log('📩 收到判题结果:', message.body)
         try {
           const data = JSON.parse(message.body)
-          console.log('📩 解析后:', data)
           this.emit('judge-result', data)
+        } catch (e) {
+          console.error('解析消息失败:', e)
+        }
+      })
+
+      // ✅ 订阅调试结果
+      this.client?.subscribe(debugQueue, (message) => {
+        console.log('📩 收到调试结果:', message.body)
+        try {
+          const data = JSON.parse(message.body)
+          this.emit('debug-judge-result', data)
         } catch (e) {
           console.error('解析消息失败:', e)
         }
@@ -59,7 +70,7 @@ class WebSocketService {
   }
 
   private emit(event: string, data: any) {
-    console.log('📤 emit 触发:', event, data)  // ✅ 加日志
+    console.log('📤 emit 触发:', event, data)
     const callbacks = this.listeners.get(event)
     if (callbacks) {
       callbacks.forEach(cb => cb(data))

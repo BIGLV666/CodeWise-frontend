@@ -29,28 +29,40 @@
 
     <section class="sidebar-section collections-section">
       <div class="section-title">
-        <span>我的题单</span>
-        <el-button :icon="Plus" text size="small" />
+          <span>我的题单</span>
+        <el-button :icon="Plus" text size="small" @click="$emit('create-favorite')" />
       </div>
-      <div class="menu-item active">
+      <div
+        v-for="favorite in favorites"
+        :key="favorite.favoritesId"
+        class="menu-item"
+        :class="{ active: favorite.favoritesId === selectedFavoriteId }"
+        @click="$emit('select-favorite', favorite.favoritesId)"
+      >
         <el-icon><StarFilled /></el-icon>
-        <span>我的收藏</span>
+        <span>{{ favorite.favoritesName }}</span>
       </div>
-      <div class="menu-item">
-        <el-icon><Document /></el-icon>
-        <span>树和链表</span>
-      </div>
+      <el-empty v-if="!loading && favorites.length === 0" description="暂无题单" :image-size="64" />
     </section>
 
-    <el-button class="create-collection" :icon="FolderAdd" plain>新建题单</el-button>
+    <el-button class="create-collection" :icon="FolderAdd" plain @click="$emit('create-favorite')">新建题单</el-button>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { Calendar, Collection, Compass, Document, FolderAdd, Menu, Plus, Reading, StarFilled } from '@element-plus/icons-vue'
+import { Calendar, Collection, Compass, FolderAdd, Menu, Plus, Reading, StarFilled } from '@element-plus/icons-vue'
+import type { FavoriteCollection } from '@/types/FavoriteProblem'
+
+defineProps<{
+  favorites: FavoriteCollection[]
+  selectedFavoriteId: string
+  loading: boolean
+}>()
 
 defineEmits<{
   (event: 'go-home'): void
+  (event: 'select-favorite', value: string): void
+  (event: 'create-favorite'): void
 }>()
 </script>
 

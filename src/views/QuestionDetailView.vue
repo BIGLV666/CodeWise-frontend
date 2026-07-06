@@ -6,6 +6,7 @@
       :question-id="questionData?.questionId"
       @back="goBack"
       @copy="copyText(questionData?.title || '')"
+      @favorite="handleFavoriteQuestion"
       @reset-layout="resetLayout"
     />
 
@@ -104,6 +105,7 @@ import * as monaco from 'monaco-editor'
 import { marked } from 'marked'
 import websocketService from '@/utils/WebSocket'
 import questionApi from '@/api/questionApi'
+import reviewApi from '@/api/reviewApi'
 import QuestionInfoTabs from '@/components/question-detail/QuestionInfoTabs.vue'
 import QuestionResultContent from '@/components/question-detail/QuestionResultContent.vue'
 import QuestionTopBar from '@/components/question-detail/QuestionTopBar.vue'
@@ -569,7 +571,14 @@ const clearResult = () => {
   judgeProgress.value = 0
 }
 
-const goBack = () => { router.back() }
+const goBack = () => {
+  const from = Array.isArray(route.query.from) ? route.query.from[0] : route.query.from
+  if (from === '/favorites') {
+    router.push('/favorites')
+    return
+  }
+  router.back()
+}
 
 // ====== 复制文本 ======
 const copyText = (text: any) => {
@@ -592,6 +601,40 @@ const copyText = (text: any) => {
     }
     document.body.removeChild(textarea)
   })
+}
+
+const getDefaultFavoriteId = async () => {
+  const listRes: any = await reviewApi.listFavorites()
+  const favorites = listRes.data || []
+  if (favorites.length > 0) {
+    return String(favorites[0].favoritesId)
+  }
+
+  const requestIdRes: any = await reviewApi.getCreateRequestId()
+  await reviewApi.createFavorite('我的收藏', requestIdRes.data)
+  const refreshedRes: any = await reviewApi.listFavorites()
+  const refreshedFavorites = refreshedRes.data || []
+  return refreshedFavorites[0]?.favoritesId ? String(refreshedFavorites[0].favoritesId) : ''
+}
+
+const handleFavoriteQuestion = async () => {
+  const questionId = Array.isArray(route.query.questionId) ? route.query.questionId[0] : route.query.questionId
+  if (!questionId) {
+    ElMessage.warning('缺少题目 ID')
+    return
+  }
+
+  try {
+    const favoriteId = await getDefaultFavoriteId()
+    if (!favoriteId) {
+      ElMessage.warning('暂无可用收藏夹')
+      return
+    }
+    await reviewApi.addQuestion(String(questionId), favoriteId)
+    ElMessage.success('已加入收藏夹')
+  } catch (error) {
+    console.error('收藏题目失败:', error)
+  }
 }
 
 // ====== 拖拽调整左右面板 ======
@@ -799,8 +842,7 @@ const handleDebug = async () => {
       questionId: Number(route.query.questionId),
       tests: debugTestCases.value.map(tc => ({
         input: tc.input,
-        expectedOutput: tc.expectedOutput || '',
-        result: null,
+        output: tc.expectedOutput || '',
       }))
     })
 

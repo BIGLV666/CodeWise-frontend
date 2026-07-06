@@ -26,7 +26,7 @@ export interface DebugTestCase {
 }
 
 export interface JudgeReturnRecordDto {
-  userId?: number
+  userId?: string
   errorMsg?: string
   log?: string
   submitStatus?: string

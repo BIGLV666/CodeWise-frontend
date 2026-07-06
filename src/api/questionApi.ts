@@ -7,7 +7,7 @@ export interface JudgeRequest {
 // types/debug.ts
 export interface DebugTestCase {
   input: string
-  expectedOutput: string
+  output: string
   result?: DebugResult | null
 }
 

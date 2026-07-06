@@ -20,7 +20,7 @@ export const useUserStore = defineStore('user', {
       this.token = data.token
       this.userDto = data.userDto
       localStorage.setItem('token', data.token)
-      localStorage.setItem('userId',data.userDto.userId)
+      localStorage.setItem('userId', String(data.userDto.userId))
       localStorage.setItem('userName',data.userDto.userName)
     },
     
@@ -28,6 +28,8 @@ export const useUserStore = defineStore('user', {
       this.token = ''
       this.userDto = null
       localStorage.removeItem('token')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('userName')
     },
     
     updateUser(data: Partial<userDto>) {

@@ -101,8 +101,8 @@
 </template>
 
 <script setup lang="ts">
-import request from '@/api/request'
 import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import userApi from '@/api/userApi'
@@ -113,6 +113,7 @@ import { useUserStore } from '@/stores/User'
 // 表单引用
 const loginFormRef = ref<FormInstance>()
 const loading = ref(false)
+const router = useRouter()
 
 // 表单数据
 const loginForm = reactive({
@@ -136,63 +137,31 @@ const rules = reactive<FormRules>({
 // 登录处理函数
 // 登录处理函数
 const handleLogin = async () => {
-  console.log('1. 按钮被点击了')
-  
   if (!loginFormRef.value) return
-  // 在 handleLogin 方法中
-const res = await userApi.login(loginForm.username, loginForm.password)
-console.log('📌 userApi.login 原始返回:', JSON.stringify(res, null, 2))
-console.log('📌 res.data:', res.data)
-console.log('📌 res.data.user:', res.data?.user)
-console.log('📌 res.data.user.userId:', res.data?.user?.userId)
 
-  
   try {
-    // 1. 先校验表单，如果不通过会走 catch，如果通过才会往下走
     await loginFormRef.value.validate()
-    console.log('2. 表单校验通过，准备发送请求...')
-
-    // 2. 开启 loading
     loading.value = true
 
-    // 3. 发送请求 (确保你的 userApi.login 返回的是 Promise)
-    //const res: any = await userApi.login(loginForm.username, loginForm.password)
-   const res: any = await request.post('/user/login', null, {
-  params: {
-    username: loginForm.username,
-    password: loginForm.password
-  }
-})
-
-    console.log('📌 setLoginData 接收到的 userDto:', res.data.user)
-    console.log('📌 setLoginData 接收到的 userId:', res.data.user.userId)
-    console.log('3. 请求返回结果：', res)
-
-    // 4. 处理业务逻辑
-    if (res.code == 200) {
-      const token: string = res.data.token
-      const userDto: userDto = res.data.user
-      const userStore = useUserStore()
-      userStore.setLoginData({ token, userDto })
-      console.log('📌 存储后的 userId:', localStorage.getItem('userId'))
-      
-  
-      console.log('登录响应:', res.data) 
-      ElMessage.success("登录成功") // 成功一般用 success
-      // TODO: 这里记得跳转到首页 router.push('/')
-    } else {
-      ElMessage.error(res.message || '登录失败')
+    const res: any = await userApi.login(loginForm.username, loginForm.password)
+    const token: string = res.data.token
+    const userDto: userDto = {
+      ...res.data.user,
+      userId: String(res.data.user.userId),
     }
+
+    const userStore = useUserStore()
+    userStore.setLoginData({ token, userDto })
+    ElMessage.success('登录成功')
+    router.push('/home')
   } catch (error) {
-    console.error('❌ 捕获到错误：', error)
-    // 如果是表单校验失败，error 会是 false 或者校验信息
-    // 如果是请求失败，error 会是 AxiosError
-    ElMessage.error('登录失败，请检查网络或控制台错误信息')
+    console.error('登录失败:', error)
+    ElMessage.error('登录失败，请检查账号密码或网络')
   } finally {
-    // 无论成功失败，关闭 loading
     loading.value = false
   }
 }
+
 
   
 

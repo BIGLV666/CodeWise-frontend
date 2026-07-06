@@ -537,11 +537,11 @@ const restoreScrollPosition = () => {
   localStorage.removeItem('returnQuestionId')
 
   // 如果保存的 lastId 更大，先加载数据
-  if (lastIdStr && parseInt(lastIdStr) > lastId.value) {
+  if (lastIdStr && parseInt(lastIdStr) > (lastId.value ?? 0)) {
     console.log('📌 需要加载更多数据，目标 lastId:', lastIdStr)
 
     const loadUntilTarget = () => {
-      if (hasMore.value && lastId.value < parseInt(lastIdStr)) {
+      if (hasMore.value && (lastId.value ?? 0) < parseInt(lastIdStr)) {
         loadQuestions(false)
         // ✅ 减少延迟到 100ms
         setTimeout(loadUntilTarget, 100)

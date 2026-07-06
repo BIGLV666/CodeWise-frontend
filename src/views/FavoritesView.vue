@@ -3,9 +3,16 @@
     <FavoritesNavBar v-model="keyword" @go-home="goHome" />
 
     <div class="main-container">
-      <FavoritesSidebar @go-home="goHome" />
+      <FavoritesSidebar
+        :favorites="favorites"
+        :selected-favorite-id="selectedFavoriteId"
+        :loading="favoritesLoading"
+        @go-home="goHome"
+        @select-favorite="selectFavorite"
+        @create-favorite="createFavorite"
+      />
 
-      <main class="content-panel">
+      <main v-loading="favoritesLoading || questionsLoading" class="content-panel">
         <section class="summary-panel">
           <FavoritesProgressCard
             :total-count="problems.length"
@@ -33,19 +40,24 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import FavoritesNavBar from '@/components/favorites/FavoritesNavBar.vue'
 import FavoritesProblemList from '@/components/favorites/FavoritesProblemList.vue'
 import FavoritesProgressCard from '@/components/favorites/FavoritesProgressCard.vue'
 import FavoritesSidebar from '@/components/favorites/FavoritesSidebar.vue'
 import { favoriteProblems } from '@/data/favoriteProblems'
-import type { FavoriteDifficulty, FavoriteProblem } from '@/types/FavoriteProblem'
+import reviewApi from '@/api/reviewApi'
+import type { FavoriteCollection, FavoriteDifficulty, FavoriteProblem, FavoriteQuestionDto } from '@/types/FavoriteProblem'
 
 const router = useRouter()
 const keyword = ref('')
 const difficultyFilter = ref<FavoriteDifficulty | ''>('')
 const sortAsc = ref(true)
-const problems = ref<FavoriteProblem[]>(favoriteProblems)
+const problems = ref<FavoriteProblem[]>([])
+const favorites = ref<FavoriteCollection[]>([])
+const selectedFavoriteId = ref('')
+const favoritesLoading = ref(false)
+const questionsLoading = ref(false)
 
 const filteredProblems = computed(() => {
   const text = keyword.value.trim().toLowerCase()
@@ -55,7 +67,7 @@ const filteredProblems = computed(() => {
     return matchedText && matchedDifficulty
   })
 
-  return [...result].sort((a, b) => (sortAsc.value ? a.id - b.id : b.id - a.id))
+  return [...result].sort((a, b) => compareId(a.id, b.id) * (sortAsc.value ? 1 : -1))
 })
 
 const solvedCount = computed(() => problems.value.filter((item) => item.solved).length)
@@ -81,6 +93,107 @@ const countByDifficulty = (difficulty: FavoriteDifficulty, solvedOnly = false) =
   return problems.value.filter((item) => item.difficulty === difficulty && (!solvedOnly || item.solved)).length
 }
 
+const compareId = (a: string, b: string) => {
+  try {
+    const left = BigInt(a)
+    const right = BigInt(b)
+    return left > right ? 1 : left < right ? -1 : 0
+  } catch {
+    return a.localeCompare(b)
+  }
+}
+
+const mapDifficulty = (difficulty?: number): FavoriteDifficulty => {
+  const map: Record<number, FavoriteDifficulty> = {
+    1: 'Easy',
+    2: 'Medium',
+    3: 'Hard',
+  }
+  return map[difficulty || 1] || 'Easy'
+}
+
+const formatAcceptance = (question: FavoriteQuestionDto) => {
+  if (question.passRate !== undefined && question.passRate !== null) {
+    const raw = Number(question.passRate)
+    if (!Number.isNaN(raw)) {
+      return raw <= 1 ? `${(raw * 100).toFixed(1)}%` : `${raw.toFixed(1)}%`
+    }
+  }
+  if (question.totalSubmit && question.totalAc !== undefined) {
+    return `${((question.totalAc / question.totalSubmit) * 100).toFixed(1)}%`
+  }
+  return '-'
+}
+
+const mapQuestion = (question: FavoriteQuestionDto): FavoriteProblem => ({
+  id: String(question.questionId),
+  title: question.title,
+  acceptance: formatAcceptance(question),
+  difficulty: mapDifficulty(question.difficulty),
+  solved: false,
+})
+
+const loadFavorites = async () => {
+  favoritesLoading.value = true
+  try {
+    const res: any = await reviewApi.listFavorites()
+    favorites.value = (res.data || []).map((item: any) => ({
+      ...item,
+      favoritesId: String(item.favoritesId),
+      userId: item.userId !== undefined && item.userId !== null ? String(item.userId) : undefined,
+      questionIds: Array.isArray(item.questionIds) ? item.questionIds.map((id: any) => String(id)) : [],
+    }))
+
+    if (favorites.value.length === 0) {
+      problems.value = []
+      selectedFavoriteId.value = ''
+      return
+    }
+
+    const nextFavoriteId = selectedFavoriteId.value || favorites.value[0].favoritesId
+    await selectFavorite(nextFavoriteId)
+  } catch (error) {
+    console.error('加载收藏夹失败:', error)
+    problems.value = favoriteProblems
+    ElMessage.warning('收藏夹接口暂不可用，已显示本地示例数据')
+  } finally {
+    favoritesLoading.value = false
+  }
+}
+
+const selectFavorite = async (favoriteId: string) => {
+  selectedFavoriteId.value = favoriteId
+  questionsLoading.value = true
+  try {
+    const res: any = await reviewApi.getFavoriteQuestions(favoriteId)
+    problems.value = (res.data || []).map(mapQuestion)
+  } catch (error) {
+    console.error('加载收藏题目失败:', error)
+    problems.value = []
+  } finally {
+    questionsLoading.value = false
+  }
+}
+
+const createFavorite = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入题单名称', '新建题单', {
+      confirmButtonText: '创建',
+      cancelButtonText: '取消',
+      inputPattern: /\S+/,
+      inputErrorMessage: '题单名称不能为空',
+    })
+    const requestIdRes: any = await reviewApi.getCreateRequestId()
+    await reviewApi.createFavorite(value.trim(), requestIdRes.data)
+    ElMessage.success('题单创建成功')
+    await loadFavorites()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('创建题单失败:', error)
+    }
+  }
+}
+
 const toggleSortOrder = () => {
   sortAsc.value = !sortAsc.value
 }
@@ -101,9 +214,11 @@ const goHome = () => {
 const goToDetail = (row: FavoriteProblem) => {
   router.push({
     path: '/questiondetailview',
-    query: { questionId: row.id },
+    query: { questionId: row.id, from: '/favorites' },
   })
 }
+
+loadFavorites()
 </script>
 
 <style scoped>

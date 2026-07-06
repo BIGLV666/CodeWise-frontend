@@ -7,7 +7,7 @@
       <span class="navbar-id">{{ questionId || '' }}</span>
     </div>
     <div class="navbar-right">
-      <el-button :icon="Star" text>收藏</el-button>
+      <el-button :icon="Star" text @click="$emit('favorite')">收藏</el-button>
       <el-button :icon="CopyDocument" text @click="$emit('copy')">复制</el-button>
       <el-button text @click="$emit('reset-layout')">重置布局</el-button>
     </div>
@@ -25,6 +25,7 @@ defineProps<{
 defineEmits<{
   (event: 'back'): void
   (event: 'copy'): void
+  (event: 'favorite'): void
   (event: 'reset-layout'): void
 }>()
 </script>

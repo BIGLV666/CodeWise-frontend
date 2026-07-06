@@ -1,9 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import LoginView from '../views/LoginView.vue'
-import HomeView from '@/views/HomeView.vue'
-import QuestionDetailView from '@/views/QuestionDetailView.vue'
-import FavoritesView from '@/views/FavoritesView.vue'
-import RegisterView from '../views/RegisterView.vue'
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -12,31 +8,30 @@ const router = createRouter({
       redirect: '/login',
     },
     {
-        path:'/login',
-        name:'login',
-        component:LoginView
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/LoginView.vue'),
     },
     {
-        path:'/home',
-        name:'home',
-        component:HomeView
+      path: '/home',
+      name: 'home',
+      component: () => import('@/views/HomeView.vue'),
     },
     {
-        path:'/favorites',
-        name:'favorites',
-        component:FavoritesView
+      path: '/favorites',
+      name: 'favorites',
+      component: () => import('@/views/FavoritesView.vue'),
     },
     {
-        path:'/questiondetailview',
-        name:'questiondetailview',
-        component:QuestionDetailView
+      path: '/questiondetailview',
+      name: 'questiondetailview',
+      component: () => import('@/views/QuestionDetailView.vue'),
     },
     {
-      path:'/register',
-      name:'register',
-      component:RegisterView
-    }
-    
+      path: '/register',
+      name: 'register',
+      component: () => import('@/views/RegisterView.vue'),
+    },
   ],
 })
 

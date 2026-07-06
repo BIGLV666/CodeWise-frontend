@@ -37,6 +37,10 @@ declare module 'vue' {
     ElTabPane: typeof import('element-plus/es')['ElTabPane']
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
+    FavoritesNavBar: typeof import('./src/components/favorites/FavoritesNavBar.vue')['default']
+    FavoritesProblemList: typeof import('./src/components/favorites/FavoritesProblemList.vue')['default']
+    FavoritesProgressCard: typeof import('./src/components/favorites/FavoritesProgressCard.vue')['default']
+    FavoritesSidebar: typeof import('./src/components/favorites/FavoritesSidebar.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

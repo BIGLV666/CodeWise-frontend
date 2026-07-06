@@ -41,6 +41,9 @@ declare module 'vue' {
     FavoritesProblemList: typeof import('./src/components/favorites/FavoritesProblemList.vue')['default']
     FavoritesProgressCard: typeof import('./src/components/favorites/FavoritesProgressCard.vue')['default']
     FavoritesSidebar: typeof import('./src/components/favorites/FavoritesSidebar.vue')['default']
+    QuestionInfoTabs: typeof import('./src/components/question-detail/QuestionInfoTabs.vue')['default']
+    QuestionResultContent: typeof import('./src/components/question-detail/QuestionResultContent.vue')['default']
+    QuestionTopBar: typeof import('./src/components/question-detail/QuestionTopBar.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

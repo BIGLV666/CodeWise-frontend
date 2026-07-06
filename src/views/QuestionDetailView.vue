@@ -1,234 +1,45 @@
 <template>
   <div class="question-detail">
     <!-- ====== 顶部导航 ====== -->
-    <el-header class="navbar" height="56px">
-      <div class="navbar-left">
-        <el-button :icon="ArrowLeft" @click="goBack" text>返回</el-button>
-        <el-divider direction="vertical" />
-        <span class="navbar-title">{{ questionData?.title || '题目详情' }}</span>
-        <span class="navbar-id">{{ questionData?.questionId || '' }}</span>
-      </div>
-      <div class="navbar-right">
-        <el-button :icon="Star" text>收藏</el-button>
-        <el-button :icon="CopyDocument" text>复制</el-button>
-        <el-button text @click="resetLayout">🔄 重置布局</el-button>
-      </div>
-    </el-header>
+    <QuestionTopBar
+      :title="questionData?.title"
+      :question-id="questionData?.questionId"
+      @back="goBack"
+      @copy="copyText(questionData?.title || '')"
+      @reset-layout="resetLayout"
+    />
 
     <!-- ====== 主内容 ====== -->
     <div class="main-container" ref="containerRef">
       <!-- ====== 左面板：题目 ====== -->
       <div class="left-panel" :style="{ width: leftWidth + 'px' }">
-        <el-tabs v-model="activeTab" class="tabs" @tab-click="handleTabClick">
-
-          <!-- ====== 1. 题目描述 ====== -->
-          <el-tab-pane label="题目描述" name="description">
-            <div class="question-header">
-              <span class="question-id">{{ questionData?.questionId }}</span>
-              <span class="question-title">{{ questionData?.title }}</span>
-              <el-tag :type="difficultyTag" size="small" effect="light">
-                {{ difficultyText }}
-              </el-tag>
-              <span class="meta-info">
-                时间限制: {{ questionData?.timeLimit || 1000 }}ms &nbsp;|&nbsp;
-                内存限制: {{ questionData?.memoryLimit || 256 }}MB
-              </span>
-            </div>
-
-            <div class="section">
-              <div class="section-title">📄 题目描述</div>
-              <div class="markdown-body" v-html="renderContent(questionData?.description || '（无）')"></div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">⌨️ 输入描述</div>
-              <div class="markdown-body" v-html="renderContent(questionData?.inputDesc || '（无）')"></div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">🖨️ 输出描述</div>
-              <div class="markdown-body" v-html="renderContent(questionData?.outputDesc || '（无）')"></div>
-            </div>
-
-            <div class="section">
-              <div class="section-title">📋 样例</div>
-              <div class="sample-grid">
-                <div v-for="(tc, index) in sampleCases" :key="index" class="sample-box">
-                  <div class="sample-label">样例输入</div>
-                  <pre>{{ tc.inputData }}</pre>
-                  <div class="sample-label" style="margin-top:8px;">样例输出</div>
-                  <pre>{{ tc.expectedOutput }}</pre>
-                </div>
-              </div>
-            </div>
-
-            <div class="section" v-if="questionData?.hint">
-              <div class="section-title">💡 提示</div>
-              <div class="markdown-body" v-html="renderContent(questionData.hint)"></div>
-            </div>
-
-            <div class="stats-bar">
-              <span>提交: {{ questionData?.totalSubmit || 0 }}</span>
-              <span>通过: {{ questionData?.totalAc || 0 }}</span>
-              <span>通过率: {{ passRate }}%</span>
-              <span>来源: {{ questionData?.source || '未知' }}</span>
-              <span>标签: {{ questionData?.tags || '无' }}</span>
-            </div>
-          </el-tab-pane>
-
-          <!-- ====== 2. 题解 ====== -->
-          <el-tab-pane label="题解" name="solution">
-            <el-empty description="暂无题解，敬请期待" />
-          </el-tab-pane>
-
-          <!-- ====== 3. 提交记录 ====== -->
-          <el-tab-pane label="提交记录" name="submissions">
-            <div v-if="submissionsLoading" class="submissions-loading">
-              <el-skeleton :rows="5" animated />
-            </div>
-            <el-empty v-else-if="submissionsList.length === 0" description="暂无提交记录" />
-            <div v-else class="submissions-list">
-              <el-table :data="submissionsList" stripe style="width: 100%;" :header-cell-style="{ background: '#f5f7fa' }">
-                <el-table-column prop="status" label="状态" width="120" align="center">
-                  <template #default="{ row }">
-                    <el-tag :type="getStatusType(row.submitStatus)" size="small">
-                      {{ row.submitStatus }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="timeUsed" label="耗时" width="100" align="center">
-                  <template #default="{ row }">
-                    <span>{{ row.timeUsed || '-' }} ms</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="memoryUsed" label="内存" width="120" align="center">
-                  <template #default="{ row }">
-                    <span>{{ row.memoryUsed ? (row.memoryUsed / 1024).toFixed(2) + ' MB' : '-' }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="language" label="语言" width="100" align="center">
-                  <template #default="{ row }">
-                    <el-tag link type="primary">{{ row.language }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="submitTime" label="提交时间" min-width="160">
-                  <template #default="{ row }">
-                    <span>{{ formatTime(row.createTime) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="120" align="center" fixed="right">
-                  <template #default="{ row }">
-                    <el-button size="small" type="primary" text @click="viewCodeInEditor(row)">查看代码</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </div>
-          </el-tab-pane>
-
-          <!-- ====== 4. 测试用例（✅ 放在 el-tabs 内部） ====== -->
-          <el-tab-pane label="测试用例" name="testcases">
-            <div class="testcase-editor">
-              <!-- 工具栏 -->
-              <div class="testcase-toolbar">
-                <el-button size="small" type="primary" @click="addTestCase">
-                  ＋ 添加用例
-                </el-button>
-                <el-button size="small" @click="resetToSample" plain>
-                  重置为样例
-                </el-button>
-                <el-button size="small" type="success" @click="handleDebug" :loading="debugging">
-                  ▶ 调试运行
-                </el-button>
-                <span class="testcase-hint">点击卡片查看结果 | 双击卡片编辑</span>
-              </div>
-
-              <!-- 用例卡片列表 -->
-              <div class="testcase-list">
-                <div
-                  v-for="(tc, index) in debugTestCases"
-                  :key="index"
-                  class="testcase-card"
-                  :class="{
-                    'is-active': selectedTestCaseIndex === index,
-                    'has-result': tc.result,
-                    'passed': tc.passed,
-                    'failed': tc.result && !tc.passed,
-                    'is-editing': editingTestCaseIndex === index
-                  }"
-                  @click="selectTestCase(index)"
-                  @dblclick="startEditTestCase(index)"
-                >
-                  <div class="testcase-card-header">
-                    <span class="testcase-card-index">用例 {{ index + 1 }}</span>
-                    <div class="testcase-card-actions">
-                      <el-button size="small" text type="primary" @click.stop="startEditTestCase(index)">
-                        ✏️ 编辑
-                      </el-button>
-                      <el-button size="small" text type="danger" class="testcase-card-delete" @click.stop="removeTestCase(index)">
-                        ✕
-                      </el-button>
-                    </div>
-                  </div>
-
-                  <!-- 预览模式 -->
-                  <template v-if="editingTestCaseIndex !== index">
-                    <div class="testcase-card-preview">
-                      {{ tc.input ? tc.input.slice(0, 40) + (tc.input.length > 40 ? '...' : '') : '（空）' }}
-                    </div>
-                    <div class="testcase-card-footer">
-                      <el-tag v-if="tc.result" type link="primary">
-                        {{ tc.result.submitStatus }}
-                      </el-tag>
-                      <el-tag v-else type="info" size="small">⏳ 等待</el-tag>
-                      <span v-if="tc.result" class="testcase-card-metrics">
-                        {{ tc.result.timeUsed || 0 }}ms
-                      </span>
-                    </div>
-                  </template>
-
-                  <!-- 编辑模式 -->
-                  <template v-else>
-                    <div class="testcase-edit-body">
-                      <div class="testcase-edit-input">
-                        <div class="testcase-edit-label">📥 输入</div>
-                        <el-input
-                          v-model="tc.input"
-                          type="textarea"
-                          :rows="2"
-                          placeholder="请输入测试输入"
-                          spellcheck="false"
-                          @click.stop
-                        />
-                      </div>
-                      <div class="testcase-edit-output">
-                        <div class="testcase-edit-label">📤 期望输出</div>
-                        <el-input
-                          v-model="tc.expectedOutput"
-                          type="textarea"
-                          :rows="2"
-                          placeholder="（留空则只显示实际输出）"
-                          spellcheck="false"
-                          @click.stop
-                        />
-                      </div>
-                      <div class="testcase-edit-actions">
-                        <el-button size="small" type="primary" @click.stop="finishEditTestCase">
-                          完成编辑
-                        </el-button>
-                        <el-button size="small" @click.stop="cancelEditTestCase">
-                          取消
-                        </el-button>
-                      </div>
-                    </div>
-                  </template>
-                </div>
-              </div>
-
-              <el-empty v-if="debugTestCases.length === 0" description="暂无测试用例，点击「添加用例」创建" />
-            </div>
-          </el-tab-pane>
-
-        </el-tabs>
+        <QuestionInfoTabs
+          v-model:active-tab="activeTab"
+          :question-data="questionData"
+          :difficulty-tag="difficultyTag"
+          :difficulty-text="difficultyText"
+          :sample-cases="sampleCases"
+          :pass-rate="passRate"
+          :render-content="renderContent"
+          :submissions-loading="submissionsLoading"
+          :submissions-list="submissionsList"
+          :get-status-type="getStatusType"
+          :format-time="formatTime"
+          :debug-test-cases="debugTestCases"
+          :selected-test-case-index="selectedTestCaseIndex"
+          :editing-test-case-index="editingTestCaseIndex"
+          :debugging="debugging"
+          @tab-click="handleTabClick"
+          @view-code="viewCodeInEditor"
+          @add-testcase="addTestCase"
+          @reset-to-sample="resetToSample"
+          @debug="handleDebug"
+          @select-testcase="selectTestCase"
+          @start-edit-testcase="startEditTestCase"
+          @remove-testcase="removeTestCase"
+          @finish-edit-testcase="finishEditTestCase"
+          @cancel-edit-testcase="cancelEditTestCase"
+        />
       </div>
 
       <!-- ====== 拖拽手柄 ====== -->
@@ -268,173 +79,35 @@
           <div class="result-resize-handle" @mousedown="startResizeResult">
             <div class="result-handle-line"></div>
           </div>
-
-          <!-- 情况1：提交结果 -->
-          <div v-if="judgeResult" class="result-area">
-            <div class="result-status-bar" :class="judgeResultClass">
-              <div class="result-status-left">
-                <el-icon v-if="judgeResult.submitStatus === 'AC'" class="status-icon success">
-                  <CircleCheck />
-                </el-icon>
-                <el-icon v-else-if="judgeResult.submitStatus === 'PENDING'" class="status-icon pending">
-                  <Loading />
-                </el-icon>
-                <el-icon v-else class="status-icon error">
-                  <CircleClose />
-                </el-icon>
-                <span class="status-text">{{ statusText }}</span>
-                <span v-if="judgeResult.timeUsed !== null" class="status-metric">⏱️ {{ judgeResult.timeUsed }}ms</span>
-                <span v-if="judgeResult.memoryUsed !== null" class="status-metric">💾 {{ (judgeResult.memoryUsed / 1024).toFixed(2) }}MB</span>
-              </div>
-              <el-button size="small" text @click="clearResult">✕ 关闭</el-button>
-            </div>
-
-            <div v-if="judgeResult.submitStatus === 'AC'" class="result-content ac-content">
-              <el-result icon="success" title="Accepted" sub-title="恭喜通过！">
-                <template #extra>
-                  <span>耗时: {{ judgeResult.timeUsed }}ms | 内存: {{ (judgeResult.memoryUsed / 1024).toFixed(2) }}MB</span>
-                </template>
-              </el-result>
-            </div>
-
-            <div v-else-if="judgeResult.submitStatus === 'PENDING'" class="result-content">
-              <el-result icon="info" title="判题中..." sub-title="请稍候">
-                <template #extra>
-                  <el-progress :percentage="judgeProgress" :stroke-width="8" />
-                </template>
-              </el-result>
-            </div>
-
-            <div v-else class="result-content error-content">
-              <div class="error-section">
-                <div class="error-title" > 错误信息</div>
-                <el-alert :title="judgeResult.error || '未知错误'" type="error" show-icon :closable="false" />
-              </div>
-              <div v-if="judgeResult.log" class="log-section">
-                <div class="log-title">📋 完整日志</div>
-                <pre class="log-content">{{ judgeResult.log }}</pre>
-              </div>
-              <div class="sample-section">
-                <div class="sample-title">📋 失败测试点</div>
-                <el-card shadow="hover" class="sample-card input-card">
-                  <template #header>
-                    <div class="card-header">
-                      <span class="card-title">📥 输入</span>
-                      <el-button size="small" text @click="copyText(parsedTestData.input)">复制</el-button>
-                    </div>
-                  </template>
-                  <pre class="card-content">{{ parsedTestData.input || '（无）' }}</pre>
-                </el-card>
-                <el-card shadow="hover" class="sample-card expected-card">
-                  <template #header>
-                    <div class="card-header">
-                      <span class="card-title">✅ 期望输出</span>
-                      <el-button size="small" text @click="copyText(parsedTestData.expected)">复制</el-button>
-                    </div>
-                  </template>
-                  <pre class="card-content expected">{{ parsedTestData.expected || '（无）' }}</pre>
-                </el-card>
-                <el-card shadow="hover" class="sample-card actual-card">
-                  <template #header>
-                    <div class="card-header">
-                      <span class="card-title">❌ 实际输出</span>
-                      <el-button size="small" text @click="copyText(parsedTestData.actual)">复制</el-button>
-                    </div>
-                  </template>
-                  <pre class="card-content actual">{{ parsedTestData.actual || '（无输出）' }}</pre>
-                </el-card>
-              </div>
-              <div v-if="allTestCases && allTestCases.length > 1" class="summary-section">
-                <div class="summary-title">📊 测试点概览 ({{ allTestCases.length }})</div>
-                <div class="testcase-summary">
-                  <div v-for="(tc, index) in allTestCases" :key="index" class="testcase-dot"
-                    :class="tc.passed ? 'passed' : 'failed'"
-                    :title="`测试点 ${index + 1}: ${tc.passed ? '✅ 通过' : '❌ 失败'}`">
-                    {{ index + 1 }}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 情况2：调试用例有结果 -->
-          <div v-else-if="selectedTestCase && selectedTestCase.result" class="result-area">
-            <div class="result-status-bar" :class="selectedTestCase.passed ? 'ac' : 'wa'">
-              <div class="result-status-left">
-                <el-icon v-if="selectedTestCase.passed" class="status-icon success">
-                  <CircleCheck />
-                </el-icon>
-                <el-icon v-else class="status-icon error">
-                  <CircleClose />
-                </el-icon>
-                <span class="status-text">{{ selectedTestCase.result.submitStatus }}</span>
-                <span class="status-metric">⏱️{{   selectedTestCase.result.timeUsed || 0 }}ms</span>
-                <span class="status-metric">💾 {{ selectedTestCase.result.memoryUsed ? (selectedTestCase.result.memoryUsed / 1024).toFixed(2) : '0' }}MB</span>
-              </div>
-              <el-button size="small" text @click="clearSelectedTestCase">✕ 关闭</el-button>
-            </div>
-            <div class="result-content">
-              <el-card shadow="hover" class="sample-card input-card">
-                <template #header>
-                  <div class="card-header">
-                    <span class="card-title">📥 输入</span>
-                    <el-button size="small" text @click="copyText(selectedTestCase.input)">复制</el-button>
-                  </div>
-                </template>
-                <pre class="card-content">{{ selectedTestCase.input || '（无）' }}</pre>
-              </el-card>
-              <el-card shadow="hover" class="sample-card expected-card">
-                <template #header>
-                  <div class="card-header">
-                    <span class="card-title">✅ 期望输出</span>
-                    <el-button size="small" text @click="copyText(selectedTestCase.expectedOutput)">复制</el-button>
-                  </div>
-                </template>
-                <pre class="card-content expected">{{ selectedTestCase.expectedOutput || '（无）' }}</pre>
-              </el-card>
-              <el-card shadow="hover" class="sample-card actual-card">
-                <template #header>
-                  <div class="card-header">
-                    <span class="card-title"> 实际输出</span>
-                    <el-button size="small" text @click="copyText(selectedTestCase.result.userOutput)">复制</el-button>
-                  </div>
-                </template>
-                <pre class="card-content actual">{{ selectedTestCase.result.userOutput || '（无输出）' }}</pre>
-              </el-card>
-              <div v-if="selectedTestCase.result.submitStatus !== 'AC'" class="error-section">
-                <div class="error-title" >❌ 错误信息</div>
-                <el-alert :title="selectedTestCase.result.errorMsg" type="error" show-icon :closable="false" />
-              </div>
-              <div v-if="selectedTestCase.result.log" class="log-section">
-                <div class="log-title">📋 完整日志</div>
-                <pre class="log-content">{{ selectedTestCase.result.log }}</pre>
-              </div>
-            </div>
-          </div>
-
-          <!-- 情况3：选中的用例还没有结果 -->
-          <div v-else-if="selectedTestCase && !selectedTestCase.result" class="result-placeholder">
-            <el-empty description="该用例尚未运行，请点击「调试运行」" :image-size="80" />
-          </div>
-
-          <!-- 情况4：默认 -->
-          <div v-else class="result-placeholder">
-            <el-empty description="提交代码或点击左侧用例查看详情" :image-size="80" />
-          </div>
-        </div>
+          <QuestionResultContent
+            :judge-result="judgeResult"
+            :judge-result-class="judgeResultClass"
+            :status-text="statusText"
+            :judge-progress="judgeProgress"
+            :parsed-test-data="parsedTestData"
+            :all-test-cases="allTestCases"
+            :selected-test-case="selectedTestCase"
+            @clear-result="clearResult"
+            @copy-text="copyText"
+            @clear-selected-testcase="clearSelectedTestCase"
+          />
       </div>
     </div>
+  </div>
   </div>
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Star, CopyDocument, CircleCheck, CircleClose, Loading } from '@element-plus/icons-vue'
 import * as monaco from 'monaco-editor'
 import { marked } from 'marked'
 import websocketService from '@/utils/WebSocket'
 import questionApi from '@/api/questionApi'
+import QuestionInfoTabs from '@/components/question-detail/QuestionInfoTabs.vue'
+import QuestionResultContent from '@/components/question-detail/QuestionResultContent.vue'
+import QuestionTopBar from '@/components/question-detail/QuestionTopBar.vue'
+import type { DebugTestCase, JudgeResultDTO, JudgeReturnRecordDto, ParsedTestData } from '@/types/QuestionDetail'
 
 const MARGIN_RIGHT = 70
 
@@ -536,44 +209,6 @@ const handleSubmit = async () => {
     submitting.value = false
     judgeResult.value = null
   }
-}
-
-// ====== 判题结果 ======
-interface JudgeResultDTO {
-  submissionId: number
-  language: string
-  code: string
-  submitStatus: 'AC' | 'WA' | 'TLE' | 'RE' | 'CE' | 'OLE' | 'MLE' | 'PE' | 'PENDING'
-  failInde?: number
-  expectedOutput?: string
-  userOutput?: string
-  inputData?: string
-  timeUsed?: number
-  memoryUsed?: number
-  error?: string
-  log?: string
-}
-
-// ====== 调试用例类型 ======
-interface DebugTestCase {
-  input: string
-  expectedOutput: string
-  result?: JudgeReturnRecordDto | null
-  passed?: boolean | null
-}
-
-// 后端返回的单个用例结果
-interface JudgeReturnRecordDto {
-  userId?: number
-  errorMsg?: string
-  log?: string
-  submitStatus?: string
-  userOutput?: string
-  failIndex?: number
-  inputData?: string
-  expectedOutput?: string
-  timeUsed?: number
-  memoryUsed?: number
 }
 
 const judgeResult = ref<JudgeResultDTO | null>(null)
@@ -839,7 +474,7 @@ const parseErrorMsg = (errorMsg: string) => {
   }
 }
 
-const parsedTestData = computed(() => {
+const parsedTestData = computed<ParsedTestData>(() => {
   if (!judgeResult.value) return { input: '', expected: '', actual: '' }
   if (judgeResult.value.inputData) {
     return {
@@ -1158,13 +793,14 @@ const handleDebug = async () => {
   try {
     // 4. 发送调试请求
     const response: any = await questionApi.debug({
-      userId: localStorage.getItem('userId'),
+      userId: localStorage.getItem('userId') || '',
       code: code,
       language: selectedLanguage.value,
       questionId: Number(route.query.questionId),
       tests: debugTestCases.value.map(tc => ({
         input: tc.input,
-        output: tc.expectedOutput || ''
+        expectedOutput: tc.expectedOutput || '',
+        result: null,
       }))
     })
 
@@ -1215,7 +851,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ====== 全局 ====== */
 .question-detail {
   height: 100vh;
   display: flex;
@@ -1224,41 +859,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.navbar {
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  border-bottom: 1px solid #e4e7ed;
-  flex-shrink: 0;
-  height: 56px;
-}
-
-.navbar-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.navbar-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.navbar-id {
-  font-size: 13px;
-  color: #909399;
-}
-
-.navbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ====== 主容器 ====== */
 .main-container {
   flex: 1;
   display: flex;
@@ -1267,7 +867,6 @@ onBeforeUnmount(() => {
   height: calc(100vh - 56px);
 }
 
-/* ====== 左面板 ====== */
 .left-panel {
   flex-shrink: 0;
   background: #fff;
@@ -1288,55 +887,6 @@ onBeforeUnmount(() => {
   border-radius: 3px;
 }
 
-/* ====== Tabs 容器 ====== */
-.tabs {
-  height: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.tabs :deep(.el-tabs__header) {
-  flex-shrink: 0;
-  margin: 0 0 16px 0;
-  position: sticky;
-  top: 0;
-  background: #fff;
-  z-index: 10;
-  padding-top: 12px;
-}
-
-.tabs :deep(.el-tabs__content) {
-  flex: 1;
-  overflow: hidden;
-}
-
-.tabs :deep(.el-tab-pane) {
-  height: 100%;
-  overflow-y: auto;
-  padding-bottom: 4px;
-}
-
-/* ====== 提交记录 ====== */
-.submissions-list {
-  padding: 4px 0;
-  overflow-y: auto;
-  max-height: 100%;
-}
-
-.submissions-list .el-table {
-  width: 100%;
-}
-
-.submissions-list :deep(.el-table__body-wrapper) {
-  overflow-y: auto !important;
-}
-
-.submissions-loading {
-  padding: 20px;
-}
-
-/* ====== 右面板 ====== */
 .right-panel {
   flex-shrink: 0;
   background: #1e1e1e;
@@ -1358,7 +908,6 @@ onBeforeUnmount(() => {
   border-radius: 2px;
 }
 
-/* ====== 拖拽手柄 ====== */
 .resize-handle {
   width: 6px;
   flex-shrink: 0;
@@ -1386,7 +935,6 @@ onBeforeUnmount(() => {
   background: #fff;
 }
 
-/* ====== 编辑器工具栏 ====== */
 .editor-toolbar {
   display: flex;
   align-items: center;
@@ -1413,7 +961,6 @@ onBeforeUnmount(() => {
   min-height: 100px;
 }
 
-/* ====== 结果区 ====== */
 .result-wrapper {
   flex-shrink: 0;
   background: #fff;
@@ -1427,24 +974,6 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-.result-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 14px;
-  min-height: 0; 
-  max-height: 100%; 
-}
-
-.result-area::-webkit-scrollbar {
-  width: 4px;
-}
-
-.result-area::-webkit-scrollbar-thumb {
-  background: #d8dce5;
-  border-radius: 2px;
-}
-
-/* ====== 结果区拖拽手柄 ====== */
 .result-resize-handle {
   height: 8px;
   background: #e4e7ed;
@@ -1474,670 +1003,6 @@ onBeforeUnmount(() => {
   background: #fff;
 }
 
-/* ====== 状态栏 ====== */
-.result-status-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #f0f0f0;
-  margin-bottom: 8px;
-  flex-shrink: 0;
-}
-
-.result-status-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.status-icon {
-  font-size: 22px;
-}
-
-.status-icon.success {
-  color: #67c23a;
-}
-
-.status-icon.error {
-  color: #f56c6c;
-}
-
-.status-icon.pending {
-  color: #e6a23c;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.status-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.status-metric {
-  font-size: 13px;
-  color: #909399;
-}
-
-.result-wrapper.ac .result-status-bar {
-  border-bottom-color: #67c23a;
-}
-
-.result-wrapper.wa .result-status-bar,
-.result-wrapper.re .result-status-bar,
-.result-wrapper.ce .result-status-bar,
-.result-wrapper.tle .result-status-bar {
-  border-bottom-color: #f56c6c;
-}
-
-.result-wrapper.pending .result-status-bar {
-  border-bottom-color: #e6a23c;
-}
-
-/* ====== 题目样式 ====== */
-.tabs {
-  height: 100%;
-}
-
-.tabs :deep(.el-tabs__header) {
-  margin: 0 0 20px 0;
-  position: sticky;
-  top: 0;
-  background: #fff;
-  z-index: 10;
-  padding-top: 16px;
-}
-
-.tabs :deep(.el-tabs__item) {
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.question-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.question-id {
-  font-size: 13px;
-  color: #909399;
-}
-
-.question-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #303133;
-}
-
-.meta-info {
-  font-size: 13px;
-  color: #909399;
-  margin-left: auto;
-}
-
-.section {
-  margin-bottom: 28px;
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 10px;
-}
-
-.markdown-body {
-  font-size: 15px;
-  line-height: 1.9;
-  color: #303133;
-}
-
-.markdown-body p {
-  margin: 10px 0;
-}
-
-.markdown-body code {
-  background: #f5f7fa;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-}
-
-.markdown-body pre {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  padding: 14px 18px;
-  border-radius: 8px;
-  overflow-x: auto;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.markdown-body ul,
-.markdown-body ol {
-  padding-left: 24px;
-  margin: 10px 0;
-}
-
-.markdown-body li {
-  margin: 4px 0;
-}
-
-.sample-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-top: 8px;
-}
-
-.sample-box {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 14px 18px;
-  border: 1px solid #e4e7ed;
-}
-
-.sample-box pre {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-  color: #303133;
-  margin: 6px 0 0 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.6;
-}
-
-.sample-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #909399;
-}
-
-.stats-bar {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
-  display: flex;
-  gap: 24px;
-  font-size: 14px;
-  color: #909399;
-  flex-wrap: wrap;
-}
-
-/* ====== 错误内容 ====== */
-.error-section {
-  margin-bottom: 8px;
-  flex-shrink: 0;
-}
-
-.error-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #f56c6c;
-  margin-bottom: 2px;
-}
-
-.error-section .el-alert {
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
-.sample-section {
-  margin-bottom: 6px;
-  flex-shrink: 0;
-}
-
-.sample-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 4px;
-}
-
-.sample-card {
-  background: #fafafa;
-  margin-bottom: 4px;
-}
-
-.sample-card:last-child {
-  margin-bottom: 0;
-}
-
-.sample-card :deep(.el-card__header) {
-  padding: 2px 8px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.sample-card :deep(.el-card__body) {
-  padding: 4px 8px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-title {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.input-card .card-title {
-  color: #409eff;
-}
-
-.expected-card .card-title {
-  color: #67c23a;
-}
-
-.actual-card .card-title {
-  color: #f56c6c;
-}
-
-.card-content {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 120px;
-  overflow-y: auto;
-  padding: 2px 0;
-}
-
-.card-content.expected {
-  border-left: 3px solid #67c23a;
-  padding-left: 6px;
-}
-
-.card-content.actual {
-  border-left: 3px solid #f56c6c;
-  padding-left: 6px;
-}
-
-/* ====== 测试点概览 ====== */
-.summary-section {
-  margin-top: 4px;
-}
-
-.summary-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 6px;
-}
-
-.testcase-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.testcase-dot {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  color: #fff;
-  cursor: pointer;
-}
-
-.testcase-dot.passed {
-  background: #67c23a;
-}
-
-.testcase-dot.failed {
-  background: #f56c6c;
-}
-
-/* ====== 提交记录 ====== */
-.submissions-list {
-  padding: 8px 0;
-  height: 100%;
-  overflow-y: auto;
-  max-height: calc(100vh - 350px);
-}
-
-.submissions-list .el-table {
-  width: 100%;
-}
-
-.submissions-loading {
-  padding: 20px;
-}
-
-/* ✅ 表格内容滚动 */
-.submissions-list :deep(.el-table__body-wrapper) {
-  overflow-y: auto !important;
-}
-
-/* ✅ 表格行悬停 */
-.submissions-list :deep(.el-table__row:hover) {
-  background: #f0f2f5;
-}
-
-/* ====== 日志区域 ====== */
-.log-section {
-  margin-bottom: 8px;
-  flex-shrink: 0;
-}
-
-.log-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #303133;
-  margin-bottom: 4px;
-}
-
-.log-content {
-  font-family: 'JetBrains Mono', 'Courier New', monospace;
-  font-size: 11px;
-  line-height: 1.6;
-  background: #1a1a2e;
-  color: #d4d4d4;
-  padding: 10px 12px;
-  border-radius: 6px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 120px;
-  overflow-y: auto;
-  margin: 0;
-  border: 1px solid #333;
-}
-
-.log-content::-webkit-scrollbar {
-  width: 4px;
-}
-
-.log-content::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 2px;
-}
-
-/* ====== 测试用例编辑器 ====== */
-.testcase-editor {
-  padding: 4px 0;
-}
-
-.testcase-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.testcase-hint {
-  font-size: 12px;
-  color: #909399;
-  margin-left: auto;
-}
-
-.testcase-item {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 16px 18px;
-  margin-bottom: 16px;
-  border: 1px solid #e4e7ed;
-}
-
-.testcase-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.testcase-index {
-  font-weight: 600;
-  font-size: 14px;
-  color: #303133;
-}
-
-.testcase-body {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.testcase-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #606266;
-  margin-bottom: 4px;
-}
-
-.testcase-body .el-textarea {
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.testcase-result {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #d8dce5;
-  background: #fff;
-  border-radius: 4px;
-  padding: 10px 12px;
-}
-
-.result-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  margin-bottom: 2px;
-}
-
-.result-label {
-  color: #909399;
-  flex-shrink: 0;
-}
-
-.result-value {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  background: #1a1a2e;
-  color: #d4d4d4;
-  padding: 6px 10px;
-  border-radius: 4px;
-  flex: 1;
-}
-
-.result-error {
-  color: #f56c6c;
-  font-size: 13px;
-}
-
-.result-metrics {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-}
-
-/* ====== 测试用例卡片列表 ====== */
-.testcase-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: calc(100vh - 300px);
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.testcase-card {
-  background: #f5f7fa;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  padding: 10px 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.testcase-card:hover {
-  background: #eef2f7;
-  border-color: #d8dce5;
-}
-
-.testcase-card.is-active {
-  border-color: #409eff;
-  background: #ecf5ff;
-}
-
-.testcase-card.passed {
-  border-left: 4px solid #67c23a;
-}
-
-.testcase-card.failed {
-  border-left: 4px solid #f56c6c;
-}
-
-.testcase-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.testcase-card-index {
-  font-weight: 600;
-  font-size: 13px;
-  color: #303133;
-}
-
-.testcase-card-delete {
-  opacity: 0.5;
-  transition: opacity 0.2s;
-}
-
-.testcase-card-delete:hover {
-  opacity: 1;
-}
-
-.testcase-card-preview {
-  font-size: 13px;
-  color: #606266;
-  margin: 4px 0;
-  font-family: 'JetBrains Mono', monospace;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.testcase-card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-}
-
-.testcase-card-metrics {
-  font-size: 12px;
-  color: #909399;
-}
-/* ====== 编辑模式 ====== */
-.testcase-card.is-editing {
-  border-color: #409eff;
-  background: #ecf5ff;
-  cursor: default;
-}
-
-.testcase-card.is-editing:hover {
-  border-color: #409eff;
-  background: #ecf5ff;
-}
-
-.testcase-edit-body {
-  width: 100%;
-  padding: 4px 0;
-}
-
-.testcase-edit-input,
-.testcase-edit-output {
-  margin-bottom: 8px;
-}
-
-.testcase-edit-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #606266;
-  margin-bottom: 2px;
-}
-
-.testcase-edit-body .el-textarea {
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.testcase-edit-body .el-textarea :deep(textarea) {
-  font-size: 13px;
-  background: #fff;
-}
-
-.testcase-edit-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.testcase-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.testcase-card-actions .el-button {
-  padding: 0 4px;
-  font-size: 12px;
-}
-/* ====== 测试用例编辑器 ====== */
-.testcase-editor {
-  padding: 4px 0;
-}
-
-.testcase-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.testcase-hint {
-  font-size: 12px;
-  color: #909399;
-  margin-left: auto;
-}
-
-@media (max-width: 768px) {
-  .testcase-body {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ====== 响应式 ====== */
 @media (max-width: 1024px) {
   .main-container {
     flex-direction: column;
@@ -2152,19 +1017,6 @@ onBeforeUnmount(() => {
 
   .resize-handle {
     display: none;
-  }
-
-  .sample-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .question-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .meta-info {
-    margin-left: 0;
   }
 }
 </style>

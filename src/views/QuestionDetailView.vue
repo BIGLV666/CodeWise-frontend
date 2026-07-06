@@ -1170,6 +1170,7 @@ const handleDebug = async () => {
 
     // 5. 处理响应
     if (response.code === 200) {
+      ElMessage.success('提交成功，请稍候，请勿刷新页面')
       const results = response.data || []
       debugTestCases.value.forEach((tc, index) => {
         if (index < results.length) {
@@ -1177,11 +1178,7 @@ const handleDebug = async () => {
           tc.passed = tc.expectedOutput?.trim() === results[index].userOutput?.trim()
         }
       })
-      const firstResultIndex = debugTestCases.value.findIndex(tc => tc.result)
-      if (firstResultIndex !== -1) {
-        selectedTestCaseIndex.value = firstResultIndex
-      }
-      ElMessage.success(`调试完成，共 ${results.length} 个用例`)
+     
     } else {
       ElMessage.error(response.message || '调试失败')
     }

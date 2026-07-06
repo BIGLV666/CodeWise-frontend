@@ -1,6 +1,6 @@
 
 export default interface userDto {
-  userId: number
+  userId: string
   userName: string
   email: string
   phone: string

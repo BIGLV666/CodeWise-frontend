@@ -72,7 +72,7 @@
 
           <div class="form-options">
             <el-checkbox v-model="loginForm.remember">记住我</el-checkbox>
-            <el-link type="primary" :underline="false">忘记密码？</el-link>
+            <el-link type="primary" :underline="false" @click="() => $router.push('/register')">忘记密码？</el-link>
           </div>
 
           <el-button 
@@ -85,14 +85,14 @@
           </el-button >
 
           <div class="register-link">
-            还没有账号？<el-link type="primary" :underline="false">立即注册</el-link>
+            还没有账号？<el-link type="primary" :underline="false" @click="() => $router.push('/register')">立即注册</el-link>
           </div>
 
           <el-divider>其他登录方式</el-divider>
 
           <div class="social-login">
-            <el-button circle :icon="() => 'G'" class="social-btn github-btn"></el-button>
-            <el-button circle :icon="() => 'G'" class="social-btn google-btn"></el-button>
+            <el-button circle :icon="() => 'Github'" class="social-btn github-btn"></el-button>
+            <el-button circle :icon="() => 'Google'" class="social-btn google-btn"></el-button>
           </div>
         </el-form>
       </div>

@@ -86,6 +86,29 @@
 
       <!-- 中间题目列表 -->
       <div class="center-panel">
+        <section class="home-overview">
+          <div class="overview-copy">
+            <span class="eyebrow">题库训练 · {{ currentMonth }}</span>
+            <h1>今天从一道合适的题开始</h1>
+            <p>按难度、状态和关键词筛选题目；收藏常练题单，或进入复习页按计划巩固薄弱点。</p>
+          </div>
+
+          <div class="overview-metrics">
+            <div class="metric-card">
+              <span>题目总数</span>
+              <strong>{{ totalCount || displayList.length }}</strong>
+            </div>
+            <div class="metric-card">
+              <span>已解答</span>
+              <strong>{{ solvedCount }}</strong>
+            </div>
+            <div class="metric-card">
+              <span>平均通过率</span>
+              <strong>{{ overallAcceptance }}%</strong>
+            </div>
+          </div>
+        </section>
+
         <div class="content-header">
           <div class="header-left">
             <h2>题目列表</h2>
@@ -1401,6 +1424,324 @@ onMounted(() => {
   }
   .filter-select {
     width: 100px;
+  }
+}
+
+/* ===== Home refresh: align with Review page visual language ===== */
+.leetcode-clone {
+  background: #f6f7f9;
+  color: #191c1e;
+}
+
+.navbar {
+  height: 58px;
+  padding: 0 28px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.logo-text {
+  background: none;
+  -webkit-text-fill-color: initial;
+  color: #1a1a2e;
+}
+
+.nav-item:hover {
+  background: #fff8f0;
+  color: #ffa116;
+}
+
+.search-input {
+  width: 220px;
+}
+
+.main-container {
+  width: min(1380px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 24px 0 30px;
+  gap: 18px;
+  background: transparent;
+}
+
+.divider {
+  display: none;
+}
+
+.left-panel,
+.right-panel {
+  border: 1px solid #e8ecf1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.left-panel {
+  width: 248px;
+  padding: 20px 16px;
+}
+
+.right-panel {
+  width: 292px;
+  padding: 0;
+  gap: 0;
+  overflow: hidden auto;
+}
+
+.center-panel {
+  padding: 0;
+  gap: 18px;
+  background: transparent;
+}
+
+.home-overview,
+.content-header,
+.table-wrapper {
+  background: #ffffff;
+  border: 1px solid #e8ecf1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.home-overview {
+  min-height: 178px;
+  padding: 28px 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+  gap: 28px;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.overview-copy {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #fff8f0;
+  color: #b86b00;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.overview-copy h1 {
+  margin: 16px 0 10px;
+  color: #1a1a2e;
+  font-size: 30px;
+  line-height: 1.22;
+  letter-spacing: 0;
+}
+
+.overview-copy p {
+  max-width: 620px;
+  margin: 0;
+  color: #666f7a;
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  min-height: 92px;
+  padding: 14px 16px;
+  border: 1px solid #edf0f3;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.metric-card span,
+.metric-card strong {
+  display: block;
+}
+
+.metric-card span {
+  color: #8c8c8c;
+  font-size: 13px;
+}
+
+.metric-card strong {
+  margin-top: 12px;
+  color: #1a1a2e;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.content-header {
+  min-height: 72px;
+  padding: 16px 22px;
+  margin-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.header-left h2 {
+  font-size: 18px;
+}
+
+.total-count {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f5f7fa;
+}
+
+.table-wrapper {
+  margin: 0;
+  padding: 0 10px 14px;
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+}
+
+.menu-item {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.menu-item:hover {
+  background: #fff8f0;
+  color: #d98200;
+}
+
+.menu-item.active {
+  background: #fff8f0;
+  color: #ffa116;
+  font-weight: 700;
+}
+
+.menu-item .badge {
+  background: #f2f4f7;
+}
+
+.difficulty-group {
+  gap: 2px;
+}
+
+.stats-card {
+  border-radius: 0;
+  padding: 16px 18px;
+  background: #ffffff;
+  border-bottom: 1px solid #e8ecf1;
+}
+
+.stats-card:last-child {
+  border-bottom: 0;
+}
+
+.favorites-card {
+  border: 0;
+  box-shadow: none;
+}
+
+.favorite-item {
+  border-color: #edf0f3;
+  background: #fbfcfd;
+}
+
+.favorite-item:hover {
+  background: #fffdf9;
+}
+
+.calendar-day {
+  border-radius: 5px;
+}
+
+.quick-stats .stat-row {
+  padding: 10px 0;
+}
+
+:deep(.el-table) {
+  --el-table-border-color: #edf0f3;
+  --el-table-header-bg-color: #f8f9fa;
+  font-size: 14px;
+}
+
+:deep(.el-table .cell) {
+  padding: 8px 10px;
+}
+
+:deep(.el-table th.el-table__cell) {
+  background-color: #f8f9fa;
+  color: #5f6872;
+}
+
+:deep(.el-table td.el-table__cell) {
+  padding: 14px 0;
+}
+
+:deep(.el-table tbody tr:hover td.el-table__cell) {
+  background: #fffdf9 !important;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
+}
+
+.problem-title {
+  gap: 12px;
+}
+
+.problem-id {
+  min-width: 42px;
+  color: #98a1ad;
+}
+
+.problem-name {
+  font-weight: 600;
+}
+
+.solved-tag {
+  background: #eefaf7;
+  color: #00a38f;
+}
+
+@media (max-width: 1280px) {
+  .right-panel {
+    display: none;
+  }
+
+  .main-container {
+    width: min(1120px, calc(100% - 36px));
+  }
+}
+
+@media (max-width: 980px) {
+  .home-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-metrics {
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-container {
+    width: calc(100% - 28px);
+    padding-top: 16px;
+  }
+
+  .home-overview {
+    padding: 22px 18px;
+  }
+
+  .overview-copy h1 {
+    font-size: 24px;
+  }
+
+  .overview-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .content-header {
+    align-items: flex-start;
+    gap: 12px;
+    flex-direction: column;
   }
 }
 </style>

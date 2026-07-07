@@ -49,6 +49,9 @@ const questionApi={
        getSubmitRecord(questionId:number){
       return request.get('/question/getsubmitrecordsbyquestionid',{params:{questionId}})
     },
+    getUserSubmitRecords() {
+      return request.get('/question/getsubmitrecordsbyuserid')
+    },
     debug(data: { userId: string; code: string; language: string; questionId: number; tests: DebugTestCase[] }) {
       return request.post('/question/debug', data)
     }

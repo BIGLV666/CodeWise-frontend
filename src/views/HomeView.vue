@@ -26,7 +26,9 @@
         <el-badge :value="3" class="badge-item">
           <el-button :icon="Bell" circle size="small" />
         </el-badge>
-        <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
+        <button class="avatar-entry" type="button" @click="goProfile" aria-label="进入个人主页">
+          <el-avatar :size="32" :src="profileAvatarUrl" />
+        </button>
       </div>
     </header>
 
@@ -399,6 +401,10 @@ const streakDays = computed(() => {
   return streak
 })
 
+const profileAvatarUrl = computed(() => {
+  return localStorage.getItem('avatarUrl') || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+})
+
 const getFavoriteDescription = (favorite: FavoriteCollection) => {
   return favorite.favoritesContent || favorite.favoritesType || '收藏题单'
 }
@@ -564,6 +570,10 @@ const openFavorites = (favoriteId?: string) => {
 
 const goReview = () => {
   router.push('/review')
+}
+
+const goProfile = () => {
+  router.push('/profile')
 }
 
 // ===== 跳转时保存 =====
@@ -846,6 +856,23 @@ onMounted(() => {
 
 .badge-item {
   cursor: pointer;
+}
+
+.avatar-entry {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.avatar-entry:hover {
+  border-color: #ffa116;
+  box-shadow: 0 6px 14px rgba(255, 161, 22, 0.18);
+  transform: translateY(-1px);
 }
 
 .main-container {

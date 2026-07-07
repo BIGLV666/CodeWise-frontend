@@ -15,6 +15,16 @@ const userApi={
    },
      updatefromcode(number:string,code:string){
         return request.post('/user/updatefromcode',null,{params:{number,code}})
+     },
+     getUserById(id: string) {
+        return request.get('/user/getuserbyid', { params: { id } })
+     },
+     uploadAvatar(file: File) {
+        const formData = new FormData()
+        formData.append('file', file)
+        return request.post('/user/avatar', formData, {
+           headers: { 'Content-Type': 'multipart/form-data' },
+        })
      }
 
 }

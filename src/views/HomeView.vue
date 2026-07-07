@@ -27,7 +27,7 @@
           <el-button :icon="Bell" circle size="small" />
         </el-badge>
         <button class="avatar-entry" type="button" @click="goProfile" aria-label="进入个人主页">
-          <el-avatar :size="32" :src="profileAvatarUrl" />
+          <el-avatar :size="32" :src="profileAvatarUrl">{{ profileAvatarText }}</el-avatar>
         </button>
       </div>
     </header>
@@ -402,7 +402,11 @@ const streakDays = computed(() => {
 })
 
 const profileAvatarUrl = computed(() => {
-  return localStorage.getItem('avatarUrl') || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+  return localStorage.getItem('avatarUrl') || ''
+})
+
+const profileAvatarText = computed(() => {
+  return (localStorage.getItem('userName') || 'CW').slice(0, 2).toUpperCase()
 })
 
 const getFavoriteDescription = (favorite: FavoriteCollection) => {

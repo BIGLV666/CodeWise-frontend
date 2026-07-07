@@ -15,14 +15,14 @@
       </div>
       <div class="navbar-right">
         <el-button :icon="Refresh" circle size="small" :loading="loading" @click="loadProfile" />
-        <el-avatar :size="34" :src="avatarUrl" />
+        <el-avatar :size="34" :src="avatarUrl">{{ avatarText }}</el-avatar>
       </div>
     </header>
 
     <main class="profile-shell">
       <aside class="profile-sidebar">
         <section class="profile-card">
-          <el-avatar shape="square" :size="92" :src="avatarUrl" class="profile-avatar" />
+          <el-avatar shape="square" :size="92" :src="avatarUrl" class="profile-avatar">{{ avatarText }}</el-avatar>
           <div class="profile-main">
             <h1>{{ displayName }}</h1>
             <p>@{{ userInfo.userName || localUserName }}</p>
@@ -32,7 +32,22 @@
             </span>
           </div>
           <p class="bio">{{ userInfo.bio || '专注算法训练与工程能力提升，持续复盘，稳定进步。' }}</p>
-          <el-button class="edit-button" type="primary" @click="goHome">继续刷题</el-button>
+          <div class="profile-actions">
+            <el-button class="edit-button" type="primary" @click="goHome">继续刷题</el-button>
+            <el-dropdown trigger="click" @command="handleProfileCommand">
+              <el-button class="more-button">
+                编辑
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="avatar" disabled>更换头像（后端暂未开放）</el-dropdown-item>
+                  <el-dropdown-item command="profile" disabled>编辑资料（后端暂未开放）</el-dropdown-item>
+                  <el-dropdown-item command="password">修改密码</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </section>
 
         <section class="side-card">
@@ -151,7 +166,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import {
+  ArrowDown,
   CircleCheck,
   CircleClose,
   Loading,
@@ -184,7 +201,8 @@ const favorites = ref<FavoriteCollection[]>([])
 const localUserId = computed(() => localStorage.getItem('userId') || '')
 const localUserName = computed(() => localStorage.getItem('userName') || 'coder')
 const displayName = computed(() => userInfo.value.nickName || userInfo.value.userName || localUserName.value)
-const avatarUrl = computed(() => userInfo.value.avatarUrl || localStorage.getItem('avatarUrl') || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png')
+const avatarUrl = computed(() => userInfo.value.avatarUrl || localStorage.getItem('avatarUrl') || '')
+const avatarText = computed(() => displayName.value.slice(0, 2).toUpperCase())
 const favoriteCount = computed(() => favorites.value.length)
 const preferredLanguages = computed(() => {
   const langs = submitRecords.value.map((item) => item.language).filter(Boolean) as string[]
@@ -253,6 +271,11 @@ const openRecordQuestion = (record: SubmitRecord) => {
 const goHome = () => router.push('/home')
 const goReview = () => router.push('/review')
 const goFavorites = () => router.push('/favorites')
+const handleProfileCommand = (command: string) => {
+  if (command === 'password') {
+    ElMessage.info('修改密码入口后续可以接到设置弹窗')
+  }
+}
 
 onMounted(loadProfile)
 </script>
@@ -395,10 +418,20 @@ onMounted(loadProfile)
   font-size: 14px;
 }
 
+.profile-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
 .edit-button {
-  width: 100%;
   background: #262626;
   border-color: #262626;
+}
+
+.more-button {
+  min-width: 84px;
 }
 
 .side-card {

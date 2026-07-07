@@ -18,13 +18,6 @@ const userApi={
      },
      getUserById(id: string) {
         return request.get('/user/getuserbyid', { params: { id } })
-     },
-     uploadAvatar(file: File) {
-        const formData = new FormData()
-        formData.append('file', file)
-        return request.post('/user/avatar', formData, {
-           headers: { 'Content-Type': 'multipart/form-data' },
-        })
      }
 
 }

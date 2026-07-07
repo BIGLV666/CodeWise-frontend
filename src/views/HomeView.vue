@@ -92,21 +92,6 @@
             <h1>今天从一道合适的题开始</h1>
             <p>按难度、状态和关键词筛选题目；收藏常练题单，或进入复习页按计划巩固薄弱点。</p>
           </div>
-
-          <div class="overview-metrics">
-            <div class="metric-card">
-              <span>题目总数</span>
-              <strong>{{ totalCount || displayList.length }}</strong>
-            </div>
-            <div class="metric-card">
-              <span>已解答</span>
-              <strong>{{ solvedCount }}</strong>
-            </div>
-            <div class="metric-card">
-              <span>平均通过率</span>
-              <strong>{{ overallAcceptance }}%</strong>
-            </div>
-          </div>
         </section>
 
         <div class="content-header">
@@ -1455,10 +1440,10 @@ onMounted(() => {
 }
 
 .main-container {
-  width: min(1380px, calc(100% - 48px));
+  width: min(1520px, calc(100% - 72px));
   margin: 0 auto;
-  padding: 24px 0 30px;
-  gap: 18px;
+  padding: 30px 0 36px;
+  gap: 24px;
   background: transparent;
 }
 
@@ -1475,12 +1460,12 @@ onMounted(() => {
 }
 
 .left-panel {
-  width: 248px;
-  padding: 20px 16px;
+  width: 272px;
+  padding: 24px 18px;
 }
 
 .right-panel {
-  width: 292px;
+  width: 320px;
   padding: 0;
   gap: 0;
   overflow: hidden auto;
@@ -1488,7 +1473,7 @@ onMounted(() => {
 
 .center-panel {
   padding: 0;
-  gap: 18px;
+  gap: 22px;
   background: transparent;
 }
 
@@ -1501,17 +1486,16 @@ onMounted(() => {
 }
 
 .home-overview {
-  min-height: 178px;
-  padding: 28px 32px;
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
-  gap: 28px;
+  min-height: 176px;
+  padding: 34px 40px;
+  display: flex;
   align-items: center;
   border-radius: 8px;
 }
 
 .overview-copy {
   min-width: 0;
+  max-width: 720px;
 }
 
 .eyebrow {
@@ -1535,42 +1519,11 @@ onMounted(() => {
 }
 
 .overview-copy p {
-  max-width: 620px;
+  max-width: 680px;
   margin: 0;
   color: #666f7a;
   font-size: 14px;
   line-height: 1.75;
-}
-
-.overview-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.metric-card {
-  min-height: 92px;
-  padding: 14px 16px;
-  border: 1px solid #edf0f3;
-  border-radius: 8px;
-  background: #fbfcfd;
-}
-
-.metric-card span,
-.metric-card strong {
-  display: block;
-}
-
-.metric-card span {
-  color: #8c8c8c;
-  font-size: 13px;
-}
-
-.metric-card strong {
-  margin-top: 12px;
-  color: #1a1a2e;
-  font-size: 24px;
-  line-height: 1;
 }
 
 .content-header {
@@ -1705,7 +1658,7 @@ onMounted(() => {
   }
 
   .main-container {
-    width: min(1120px, calc(100% - 36px));
+    width: min(1180px, calc(100% - 42px));
   }
 }
 
@@ -1714,10 +1667,6 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .overview-metrics {
-    grid-template-columns: repeat(3, minmax(120px, 1fr));
-    overflow-x: auto;
-  }
 }
 
 @media (max-width: 768px) {
@@ -1732,10 +1681,6 @@ onMounted(() => {
 
   .overview-copy h1 {
     font-size: 24px;
-  }
-
-  .overview-metrics {
-    grid-template-columns: 1fr;
   }
 
   .content-header {

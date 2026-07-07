@@ -29,7 +29,7 @@
 
     <section class="sidebar-section collections-section">
       <div class="section-title">
-          <span>我的题单</span>
+        <span>我的收藏</span>
         <el-button :icon="Plus" text size="small" @click="$emit('create-favorite')" />
       </div>
       <div
@@ -42,10 +42,10 @@
         <el-icon><StarFilled /></el-icon>
         <span>{{ favorite.favoritesName }}</span>
       </div>
-      <el-empty v-if="!loading && favorites.length === 0" description="暂无题单" :image-size="64" />
+      <el-empty v-if="!loading && favorites.length === 0" description="暂无收藏" :image-size="64" />
     </section>
 
-    <el-button class="create-collection" :icon="FolderAdd" plain @click="$emit('create-favorite')">新建题单</el-button>
+    <el-button class="create-collection" :icon="FolderAdd" plain @click="$emit('create-favorite')">新建收藏</el-button>
   </aside>
 </template>
 

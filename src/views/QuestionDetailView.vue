@@ -8,6 +8,7 @@
       @copy="copyText(questionData?.title || '')"
       @favorite="handleFavoriteQuestion"
       @reset-layout="resetLayout"
+      @addQuestionToReview="addQuestionToReview"
     />
 
     <!-- ====== 主内容 ====== -->
@@ -94,7 +95,36 @@
           />
       </div>
     </div>
-  </div>
+    </div>
+
+    <el-dialog
+      v-model="favoriteDialogVisible"
+      title="添加到收藏"
+      width="380px"
+      class="favorite-dialog"
+    >
+      <el-select
+        v-model="selectedAddFavoriteId"
+        class="favorite-select"
+        placeholder="选择收藏夹"
+        :loading="favoriteOptionsLoading"
+        :disabled="favoriteOptionsLoading || addingFavorite"
+      >
+        <el-option
+          v-for="favorite in favoriteOptions"
+          :key="favorite.favoritesId"
+          :label="favorite.favoritesName"
+          :value="favorite.favoritesId"
+        />
+      </el-select>
+
+      <template #footer>
+        <el-button @click="favoriteDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addingFavorite" @click="confirmAddFavorite">
+          添加
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 <script setup lang="ts">
@@ -109,6 +139,7 @@ import reviewApi from '@/api/reviewApi'
 import QuestionInfoTabs from '@/components/question-detail/QuestionInfoTabs.vue'
 import QuestionResultContent from '@/components/question-detail/QuestionResultContent.vue'
 import QuestionTopBar from '@/components/question-detail/QuestionTopBar.vue'
+import type { FavoriteCollection } from '@/types/FavoriteProblem'
 import type { DebugTestCase, JudgeResultDTO, JudgeReturnRecordDto, ParsedTestData } from '@/types/QuestionDetail'
 
 const MARGIN_RIGHT = 70
@@ -127,6 +158,11 @@ const editorStatus = ref('就绪')
 const submitting = ref(false)
 const judgeProgress = ref(0)
 const resultHeight = ref(260)
+const favoriteDialogVisible = ref(false)
+const favoriteOptionsLoading = ref(false)
+const addingFavorite = ref(false)
+const favoriteOptions = ref<FavoriteCollection[]>([])
+const selectedAddFavoriteId = ref('')
 
 // ====== 提交记录 ======
 const submissionsList = ref<any[]>([])
@@ -168,6 +204,11 @@ const onLanguageChange = (lang: string) => {
   }
 }
 // ====== 提交代码 ======
+const getSubmitScene = () => {
+  const from = Array.isArray(route.query.from) ? route.query.from[0] : route.query.from
+  return from === '/review' ? 'REVIEW' : undefined
+}
+
 const handleSubmit = async () => {
   if (!editor) { ElMessage.warning('编辑器未初始化'); return }
   const code = editor.getValue()
@@ -193,7 +234,8 @@ const handleSubmit = async () => {
     const response: any = await questionApi.submitCode({
       code: code,
       language: selectedLanguage.value,
-      questionId: Number(questionId)
+      questionId: Number(questionId),
+      submitScene: getSubmitScene(),
     })
     if (response.code === 200) {
       ElMessage.success('代码已提交，等待判题...')
@@ -444,7 +486,7 @@ const getDefaultCode = (lang: string): string => {
   return templates[lang] || templates.cpp
 }
 
-watch(selectedLanguage, (newLang) => {
+watch(selectedLanguage, (newLang:any) => {
   if (editor) {
     const languageMap: Record<string, string> = {
       cpp: 'cpp', c: 'c', java: 'java', python: 'python',
@@ -574,7 +616,11 @@ const clearResult = () => {
 const goBack = () => {
   const from = Array.isArray(route.query.from) ? route.query.from[0] : route.query.from
   if (from === '/favorites') {
-    router.push('/favorites')
+    const favoriteId = Array.isArray(route.query.favoriteId) ? route.query.favoriteId[0] : route.query.favoriteId
+    router.push({
+      path: '/favorites',
+      query: favoriteId ? { favoriteId } : undefined,
+    })
     return
   }
   router.back()
@@ -603,18 +649,56 @@ const copyText = (text: any) => {
   })
 }
 
-const getDefaultFavoriteId = async () => {
-  const listRes: any = await reviewApi.listFavorites()
-  const favorites = listRes.data || []
-  if (favorites.length > 0) {
-    return String(favorites[0].favoritesId)
-  }
+const mapFavorite = (item: any): FavoriteCollection => {
+  const favoritesId = item.favoritesId ?? item.favorites_id
+  const questionIds = item.questionIds ?? item.question_ids
+  const normalizedQuestionIds = Array.isArray(questionIds)
+    ? questionIds.map((id: any) => Number(id)).filter(Number.isFinite)
+    : []
 
+  return {
+    ...item,
+    favoritesId: String(favoritesId),
+    favoritesName: item.favoritesName ?? item.favorites_name ?? '未命名收藏夹',
+    favoritesType: item.favoritesType ?? item.favorites_type,
+    favoritesContent: item.favoritesContent ?? item.favorites_content,
+    userId: item.userId !== undefined && item.userId !== null ? String(item.userId) : undefined,
+    questionIds: normalizedQuestionIds,
+    createTime: item.createTime ?? item.create_time,
+    updateTime: item.updateTime ?? item.update_time,
+  }
+}
+
+const getRequestId = async () => {
   const requestIdRes: any = await reviewApi.getCreateRequestId()
-  await reviewApi.createFavorite('我的收藏', requestIdRes.data)
-  const refreshedRes: any = await reviewApi.listFavorites()
-  const refreshedFavorites = refreshedRes.data || []
-  return refreshedFavorites[0]?.favoritesId ? String(refreshedFavorites[0].favoritesId) : ''
+  return typeof requestIdRes === 'string' ? requestIdRes : requestIdRes?.data
+}
+
+const loadFavoriteOptions = async () => {
+  favoriteOptionsLoading.value = true
+  try {
+    const listRes: any = await reviewApi.listFavorites()
+    favoriteOptions.value = (listRes.data || []).map(mapFavorite)
+
+    if (favoriteOptions.value.length === 0) {
+      const requestId = await getRequestId()
+      if (!requestId) {
+        ElMessage.error('创建请求 ID 获取失败')
+        return
+      }
+      await reviewApi.createFavorite('我的收藏', requestId)
+      const refreshedRes: any = await reviewApi.listFavorites()
+      favoriteOptions.value = (refreshedRes.data || []).map(mapFavorite)
+    }
+
+    const routeFavoriteId = Array.isArray(route.query.favoriteId) ? route.query.favoriteId[0] : route.query.favoriteId
+    const matchedRouteFavorite = routeFavoriteId
+      ? favoriteOptions.value.find((item) => item.favoritesId === String(routeFavoriteId))
+      : undefined
+    selectedAddFavoriteId.value = matchedRouteFavorite?.favoritesId || favoriteOptions.value[0]?.favoritesId || ''
+  } finally {
+    favoriteOptionsLoading.value = false
+  }
 }
 
 const handleFavoriteQuestion = async () => {
@@ -624,19 +708,52 @@ const handleFavoriteQuestion = async () => {
     return
   }
 
-  try {
-    const favoriteId = await getDefaultFavoriteId()
-    if (!favoriteId) {
-      ElMessage.warning('暂无可用收藏夹')
-      return
-    }
-    await reviewApi.addQuestion(String(questionId), favoriteId)
-    ElMessage.success('已加入收藏夹')
-  } catch (error) {
-    console.error('收藏题目失败:', error)
-  }
+  favoriteDialogVisible.value = true
+  await loadFavoriteOptions()
 }
 
+const confirmAddFavorite = async () => {
+  const questionId = Array.isArray(route.query.questionId) ? route.query.questionId[0] : route.query.questionId
+  if (!questionId) {
+    ElMessage.warning('缺少题目 ID')
+    return
+  }
+
+  if (!selectedAddFavoriteId.value) {
+    ElMessage.warning('请选择收藏夹')
+    return
+  }
+
+  addingFavorite.value = true
+  try {
+    await reviewApi.addQuestion(String(questionId), selectedAddFavoriteId.value)
+    ElMessage.success('已加入收藏夹')
+    favoriteDialogVisible.value = false
+  } catch (error) {
+    console.error('收藏题目失败:', error)
+  } finally {
+    addingFavorite.value = false
+  }
+}
+//=======添加题目到复习计划=======
+const addQuestionToReview = async () => {
+  const questionId = Array.isArray(route.query.questionId) ? route.query.questionId[0] : route.query.questionId
+  if (!questionId) {
+    ElMessage.warning('缺少题目 ID')
+    return
+  }
+  
+  try {
+    const res: any = await reviewApi.addQuestionToReview(questionId)
+    if(res.code==200){
+      ElMessage.success('已加入复习计划')
+    }else{
+      ElMessage.error(res.msg || '加入复习计划失败')
+    }
+  } catch (error) {
+    console.error('加入复习计划失败:', error)
+  }
+}
 // ====== 拖拽调整左右面板 ======
 const startResize = (e: MouseEvent) => {
   isResizing.value = true
@@ -1001,6 +1118,10 @@ onBeforeUnmount(() => {
 .editor-container {
   flex: 1;
   min-height: 100px;
+}
+
+.favorite-select {
+  width: 100%;
 }
 
 .result-wrapper {

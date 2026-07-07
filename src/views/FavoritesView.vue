@@ -38,18 +38,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import FavoritesNavBar from '@/components/favorites/FavoritesNavBar.vue'
 import FavoritesProblemList from '@/components/favorites/FavoritesProblemList.vue'
 import FavoritesProgressCard from '@/components/favorites/FavoritesProgressCard.vue'
 import FavoritesSidebar from '@/components/favorites/FavoritesSidebar.vue'
-import { favoriteProblems } from '@/data/favoriteProblems'
 import reviewApi from '@/api/reviewApi'
 import type { FavoriteCollection, FavoriteDifficulty, FavoriteProblem, FavoriteQuestionDto } from '@/types/FavoriteProblem'
 
 const router = useRouter()
+const route = useRoute()
 const keyword = ref('')
 const difficultyFilter = ref<FavoriteDifficulty | ''>('')
 const sortAsc = ref(true)
@@ -133,16 +133,36 @@ const mapQuestion = (question: FavoriteQuestionDto): FavoriteProblem => ({
   solved: false,
 })
 
+const mapFavorite = (item: any): FavoriteCollection => {
+  const favoritesId = item.favoritesId ?? item.favorites_id
+  const questionIds = item.questionIds ?? item.question_ids
+  const normalizedQuestionIds = Array.isArray(questionIds)
+    ? questionIds.map((id: any) => Number(id)).filter(Number.isFinite)
+    : []
+
+  return {
+    ...item,
+    favoritesId: String(favoritesId),
+    favoritesName: item.favoritesName ?? item.favorites_name ?? '未命名收藏夹',
+    favoritesType: item.favoritesType ?? item.favorites_type,
+    favoritesContent: item.favoritesContent ?? item.favorites_content,
+    userId: item.userId !== undefined && item.userId !== null ? String(item.userId) : undefined,
+    questionIds: normalizedQuestionIds,
+    createTime: item.createTime ?? item.create_time,
+    updateTime: item.updateTime ?? item.update_time,
+  }
+}
+
+const getRouteFavoriteId = () => {
+  const favoriteId = route.query.favoriteId
+  return Array.isArray(favoriteId) ? favoriteId[0] : favoriteId
+}
+
 const loadFavorites = async () => {
   favoritesLoading.value = true
   try {
     const res: any = await reviewApi.listFavorites()
-    favorites.value = (res.data || []).map((item: any) => ({
-      ...item,
-      favoritesId: String(item.favoritesId),
-      userId: item.userId !== undefined && item.userId !== null ? String(item.userId) : undefined,
-      questionIds: Array.isArray(item.questionIds) ? item.questionIds.map((id: any) => String(id)) : [],
-    }))
+    favorites.value = (res.data || []).map(mapFavorite)
 
     if (favorites.value.length === 0) {
       problems.value = []
@@ -150,19 +170,31 @@ const loadFavorites = async () => {
       return
     }
 
-    const nextFavoriteId = selectedFavoriteId.value || favorites.value[0].favoritesId
-    await selectFavorite(nextFavoriteId)
+    const routeFavoriteId = getRouteFavoriteId()
+    const matchedRouteFavorite = routeFavoriteId
+      ? favorites.value.find((item) => item.favoritesId === String(routeFavoriteId))
+      : undefined
+    const nextFavoriteId = matchedRouteFavorite?.favoritesId || selectedFavoriteId.value || favorites.value[0].favoritesId
+    await selectFavorite(nextFavoriteId, false)
   } catch (error) {
     console.error('加载收藏夹失败:', error)
-    problems.value = favoriteProblems
-    ElMessage.warning('收藏夹接口暂不可用，已显示本地示例数据')
+    favorites.value = []
+    problems.value = []
+    selectedFavoriteId.value = ''
+    ElMessage.error('收藏夹加载失败')
   } finally {
     favoritesLoading.value = false
   }
 }
 
-const selectFavorite = async (favoriteId: string) => {
+const selectFavorite = async (favoriteId: string, syncRoute = true) => {
   selectedFavoriteId.value = favoriteId
+  if (syncRoute && route.query.favoriteId !== favoriteId) {
+    router.replace({
+      path: '/favorites',
+      query: { ...route.query, favoriteId },
+    })
+  }
   questionsLoading.value = true
   try {
     const res: any = await reviewApi.getFavoriteQuestions(favoriteId)
@@ -184,7 +216,12 @@ const createFavorite = async () => {
       inputErrorMessage: '题单名称不能为空',
     })
     const requestIdRes: any = await reviewApi.getCreateRequestId()
-    await reviewApi.createFavorite(value.trim(), requestIdRes.data)
+    const requestId = typeof requestIdRes === 'string' ? requestIdRes : requestIdRes?.message
+    if (!requestId) {
+      ElMessage.error('创建请求 ID 获取失败')
+      return
+    }
+    await reviewApi.createFavorite(value.trim(), requestId)
     ElMessage.success('题单创建成功')
     await loadFavorites()
   } catch (error) {
@@ -214,11 +251,22 @@ const goHome = () => {
 const goToDetail = (row: FavoriteProblem) => {
   router.push({
     path: '/questiondetailview',
-    query: { questionId: row.id, from: '/favorites' },
+    query: { questionId: row.id, from: '/favorites', favoriteId: selectedFavoriteId.value },
   })
 }
 
-loadFavorites()
+watch(
+  () => route.query.favoriteId,
+  (favoriteId) => {
+    const nextFavoriteId = Array.isArray(favoriteId) ? favoriteId[0] : favoriteId
+    if (!nextFavoriteId || nextFavoriteId === selectedFavoriteId.value || favorites.value.length === 0) return
+    selectFavorite(String(nextFavoriteId), false)
+  },
+)
+
+onMounted(() => {
+  loadFavorites()
+})
 </script>
 
 <style scoped>

@@ -11,7 +11,7 @@
           <a href="#" class="nav-item active">题库</a>
           <a href="#" class="nav-item">竞赛</a>
           <a href="#" class="nav-item">讨论</a>
-          <a href="#" class="nav-item">求职</a>
+          <button type="button" class="nav-item nav-button" @click="goReview">复习</button>
         </nav>
       </div>
       <div class="navbar-right">
@@ -41,33 +41,34 @@
             <span>全部题目</span>
             <span class="badge">{{ totalCount }}/4365</span>
           </div>
-          <div class="menu-item">
+          <div class="menu-item" @click="openFavorites()">
             <el-icon><Star /></el-icon>
             <span>我的收藏</span>
           </div>
-          <div class="menu-item">
+          <div class="menu-item" @click="goReview">
             <el-icon><Clock /></el-icon>
             <span>复习</span>
           </div>
         </div>
 
         <div class="sidebar-section">
-          <div class="section-title">我的题单</div>
-          <div class="menu-item">
-            <span class="dot blue"></span>
-            <span>树和链表</span>
-          </div>
-          <div class="menu-item">
-            <span class="dot green"></span>
-            <span>动态规划专题</span>
-          </div>
-          <div class="menu-item">
+          <div class="section-title">我的收藏</div>
+          <div
+            v-for="favorite in homeFavorites"
+            :key="favorite.favoritesId"
+            class="menu-item"
+            @click="openFavorites(favorite.favoritesId)"
+          >
             <span class="dot orange"></span>
-            <span>SQL 必知必会</span>
+            <span class="favorite-menu-name">{{ favorite.favoritesName || '未命名收藏夹' }}</span>
+            <span class="badge">{{ favorite.questionIds?.length || 0 }}</span>
           </div>
-          <div class="menu-item create-btn">
+          <div v-if="!favoritesLoading && homeFavorites.length === 0" class="menu-empty">
+            暂无收藏
+          </div>
+          <div class="menu-item create-btn" @click="openFavorites()">
             <el-icon><Plus /></el-icon>
-            <span>创建新题单</span>
+            <span>创建新收藏</span>
           </div>
         </div>
 
@@ -172,6 +173,39 @@
 
       <!-- 右侧统计 -->
       <div class="right-panel">
+        <div class="stats-card favorites-card">
+          <div class="stats-header">
+            <span class="stats-title">我的收藏</span>
+            <el-button link size="small" class="view-all-btn" @click="openFavorites()">全部</el-button>
+          </div>
+
+          <div v-if="favoritesLoading" class="favorites-loading">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>加载收藏夹...</span>
+          </div>
+
+          <div v-else-if="homeFavorites.length === 0" class="favorites-empty">
+            暂无收藏夹
+          </div>
+
+          <div v-else class="favorites-list">
+            <button
+              v-for="favorite in homeFavorites"
+              :key="favorite.favoritesId"
+              type="button"
+              class="favorite-item"
+              @click="openFavorites(favorite.favoritesId)"
+            >
+              <span class="favorite-dot"></span>
+              <span class="favorite-main">
+                <span class="favorite-name">{{ favorite.favoritesName || '未命名收藏夹' }}</span>
+                <span class="favorite-desc">{{ getFavoriteDescription(favorite) }}</span>
+              </span>
+              <span class="favorite-count">{{ favorite.questionIds?.length || 0 }}</span>
+            </button>
+          </div>
+        </div>
+
         <div class="stats-card">
           <div class="stats-header">
             <span class="stats-title">📊 每日进度</span>
@@ -227,12 +261,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Search, Bell, Collection, Star, Clock, Plus, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import request from '@/api/request'
 import questionApi from '@/api/questionApi'
+import reviewApi from '@/api/reviewApi'
 import router from '@/router'
+import type { FavoriteCollection } from '@/types/FavoriteProblem'
 
 // ===== 类型定义 =====
 interface Question {
@@ -273,6 +308,8 @@ const hasMore = ref(true)
 const loading = ref(false)
 const totalCount = ref(0)
 const scrollContainer = ref<HTMLElement | null>(null)
+const homeFavorites = ref<FavoriteCollection[]>([])
+const favoritesLoading = ref(false)
 
 // 记录加载前的滚动位置
 let scrollHeightBeforeLoad = 0
@@ -353,6 +390,30 @@ const streakDays = computed(() => {
   }
   return streak
 })
+
+const getFavoriteDescription = (favorite: FavoriteCollection) => {
+  return favorite.favoritesContent || favorite.favoritesType || '收藏题单'
+}
+
+const mapFavorite = (item: any): FavoriteCollection => {
+  const favoritesId = item.favoritesId ?? item.favorites_id
+  const questionIds = item.questionIds ?? item.question_ids
+  const normalizedQuestionIds = Array.isArray(questionIds)
+    ? questionIds.map((id: any) => Number(id)).filter(Number.isFinite)
+    : []
+
+  return {
+    ...item,
+    favoritesId: String(favoritesId),
+    favoritesName: item.favoritesName ?? item.favorites_name ?? '未命名收藏夹',
+    favoritesType: item.favoritesType ?? item.favorites_type,
+    favoritesContent: item.favoritesContent ?? item.favorites_content,
+    userId: item.userId !== undefined && item.userId !== null ? String(item.userId) : undefined,
+    questionIds: normalizedQuestionIds,
+    createTime: item.createTime ?? item.create_time,
+    updateTime: item.updateTime ?? item.update_time,
+  }
+}
 
 // ===== 方法 =====
 const getDifficultyType = (difficulty: number) => {
@@ -471,6 +532,30 @@ const handleFilterChange = () => {
   hasMore.value = true
   problemList.value = []
   loadQuestions(true)
+}
+
+const loadHomeFavorites = async () => {
+  favoritesLoading.value = true
+  try {
+    const res: any = await reviewApi.listFavorites()
+    homeFavorites.value = (res.data || []).map(mapFavorite)
+  } catch (error) {
+    console.error('加载首页收藏夹失败:', error)
+    homeFavorites.value = []
+  } finally {
+    favoritesLoading.value = false
+  }
+}
+
+const openFavorites = (favoriteId?: string) => {
+  router.push({
+    path: '/favorites',
+    query: favoriteId ? { favoriteId } : undefined,
+  })
+}
+
+const goReview = () => {
+  router.push('/review')
 }
 
 // ===== 跳转时保存 =====
@@ -639,6 +724,7 @@ const handleProblemClick = (row: Question) => {
 // ===== 生命周期 =====
 onMounted(() => {
   loadQuestions(true)
+  loadHomeFavorites()
   generateCalendar()
 
   // ✅ 延迟减少到 300ms
@@ -716,6 +802,13 @@ onMounted(() => {
   border-radius: 6px;
   transition: all 0.2s;
   font-weight: 500;
+}
+
+.nav-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .nav-item:hover {
@@ -814,6 +907,20 @@ onMounted(() => {
   border-radius: 12px;
   font-size: 11px;
   color: #8c8c8c;
+}
+
+.favorite-menu-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-empty {
+  padding: 8px 12px;
+  color: #b0b0b0;
+  font-size: 13px;
 }
 
 .menu-item .dot {
@@ -1035,6 +1142,104 @@ onMounted(() => {
   color: #1a1a2e;
 }
 
+.view-all-btn {
+  color: #ffa116;
+  padding: 0;
+  height: auto;
+  font-size: 12px;
+}
+
+.favorites-card {
+  background: #ffffff;
+  border: 1px solid #e8ecf1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.favorites-loading,
+.favorites-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 72px;
+  color: #8c8c8c;
+  font-size: 13px;
+}
+
+.favorites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.favorite-item {
+  width: 100%;
+  border: 1px solid transparent;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.favorite-item:hover {
+  background: #ffffff;
+  border-color: #ffe1b8;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  transform: translateY(-2px);
+}
+
+.favorite-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffa116;
+  flex-shrink: 0;
+}
+
+.favorite-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.favorite-name,
+.favorite-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorite-name {
+  color: #1a1a2e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.favorite-desc {
+  color: #8c8c8c;
+  font-size: 11px;
+}
+
+.favorite-count {
+  min-width: 26px;
+  height: 22px;
+  border-radius: 999px;
+  background: #fff8f0;
+  color: #d98200;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .stats-month {
   font-size: 12px;
   color: #8c8c8c;
@@ -1144,7 +1349,20 @@ onMounted(() => {
   cursor: pointer;
 }
 :deep(.el-table tbody tr) {
-  transition: background 0.15s;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+:deep(.el-table tbody tr td.el-table__cell) {
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+:deep(.el-table tbody tr:hover) {
+  transform: translateY(-1px);
+}
+:deep(.el-table tbody tr:hover td.el-table__cell) {
+  background: #fffdf9 !important;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+}
+:deep(.el-table tbody tr:hover .problem-name) {
+  color: #ffa116;
 }
 :deep(.el-table th.el-table__cell) {
   background-color: #f8f9fa;

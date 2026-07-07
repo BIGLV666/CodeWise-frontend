@@ -3,6 +3,7 @@ export interface JudgeRequest {
   code: string
   language: string
   questionId: number
+  submitScene?: 'REVIEW' | string
 }
 // types/debug.ts
 export interface DebugTestCase {

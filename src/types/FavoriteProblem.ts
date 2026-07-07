@@ -14,7 +14,7 @@ export interface FavoriteCollection {
   favoritesType?: string
   favoritesContent?: string
   userId?: string
-  questionIds?: string[]
+  questionIds?: number[]
   createTime?: string
   updateTime?: string
 }

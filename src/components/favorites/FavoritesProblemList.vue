@@ -28,6 +28,7 @@
       <el-table
         :data="problems"
         row-key="id"
+        row-class-name="favorite-problem-row"
         style="width: 100%"
         :show-header="false"
         @row-click="$emit('select-problem', $event)"
@@ -149,13 +150,24 @@ const getDifficultyLabel = (difficulty: FavoriteDifficulty) => {
 
 .problem-card :deep(.el-table__row) {
   cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .problem-card :deep(.el-table__cell) {
   padding: 13px 0;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
 }
 
-.problem-card :deep(.el-table__row:hover .problem-title) {
+.problem-card :deep(.favorite-problem-row:hover) {
+  transform: translateY(-2px);
+}
+
+.problem-card :deep(.favorite-problem-row:hover td.el-table__cell) {
+  background: #fffdf9 !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+}
+
+.problem-card :deep(.favorite-problem-row:hover .problem-title) {
   color: #ffa116;
 }
 

@@ -26,6 +26,7 @@ request.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     console.log('请求URL:', config.baseURL, config.url)
+    console.log('请求参数:', config.params,config.data)
 
     return config as any
   },

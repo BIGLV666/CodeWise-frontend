@@ -1,12 +1,43 @@
 import request from './request'
 import type { FavoriteCollection, FavoriteQuestionDto } from '@/types/FavoriteProblem'
 
+export interface ReviewQuestionDto extends FavoriteQuestionDto {
+  tags?: string
+  totalSubmit?: number
+  totalAc?: number
+}
+
+export interface ReviewConfig {
+  reviewConfigId?: string
+  userId?: string
+  reviewCount?: number
+  enableAutoReview?: number
+  countCompileError?: number
+  minEasinessFactor?: number
+  initialEasinessFactor?: number
+  masteredIntervalDays?: number
+  createTime?: string
+  updateTime?: string
+}
+
+export type ReviewConfigPayload = Partial<
+  Pick<
+    ReviewConfig,
+    | 'reviewCount'
+    | 'enableAutoReview'
+    | 'countCompileError'
+    | 'minEasinessFactor'
+    | 'initialEasinessFactor'
+    | 'masteredIntervalDays'
+  >
+>
+
 export interface UpdateFavoritePayload {
   favoritesId: string
   favoritesName?: string
   favoritesContent?: string
   favoritesType?: string
-  questionIds?: string[]
+  questionIds?: number[]
 }
 
 const reviewApi = {
@@ -51,6 +82,23 @@ const reviewApi = {
   updateFavorite(data: UpdateFavoritePayload) {
     return request.put<string>('/review/favorites', data)
   },
+  addQuestionToReview(questionId: string) {
+    return request.post<string>('/review/review/addquestiontoreview', null, {
+      params: { questionId },
+    })
+  },
+
+  getTodayReview() {
+    return request.get<ReviewQuestionDto[]>('/review/review/today')
+  },
+
+  getReviewConfig() {
+    return request.get<ReviewConfig>('/review/review/config')
+  },
+
+  updateReviewConfig(data: ReviewConfigPayload) {
+    return request.put<ReviewConfig>('/review/review/config', data)
+  }
 }
 
 export default reviewApi

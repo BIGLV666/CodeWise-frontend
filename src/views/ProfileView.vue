@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <div class="profile-view">
     <header class="navbar">
       <div class="navbar-left">
         <button class="logo" type="button" @click="goHome">
-          <span class="logo-icon">⚡</span>
+          <span class="logo-icon">C</span>
           <span class="logo-text">CodeWise</span>
         </button>
         <nav class="nav-menu">
@@ -41,12 +41,19 @@
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="avatar" disabled>更换头像（后端暂未开放）</el-dropdown-item>
-                  <el-dropdown-item command="profile" disabled>编辑资料（后端暂未开放）</el-dropdown-item>
+                  <el-dropdown-item command="avatar">更换头像</el-dropdown-item>
+                  <el-dropdown-item command="profile">编辑资料</el-dropdown-item>
                   <el-dropdown-item command="password">修改密码</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+            <input
+              ref="avatarInputRef"
+              class="avatar-input"
+              type="file"
+              accept="image/*"
+              @change="handleAvatarChange"
+            />
           </div>
         </section>
 
@@ -100,7 +107,7 @@
 
         <section class="achievement-card">
           <div class="section-header">
-            <h2>荣誉勋章</h2>
+            <h2>荣誉徽章</h2>
             <span>基于当前提交和收藏数据</span>
           </div>
           <div class="badge-list">
@@ -133,11 +140,11 @@
             <span>加载个人数据...</span>
           </div>
 
-          <el-empty v-else-if="recentRecords.length === 0" description="暂无提交记录" />
+          <el-empty v-else-if="submitRecords.length === 0" description="暂无提交记录" />
 
           <div v-else class="activity-list">
             <button
-              v-for="record in recentRecords"
+              v-for="record in submitRecords"
               :key="record.submitRecordId"
               class="activity-item"
               type="button"
@@ -148,7 +155,7 @@
                 <CircleClose v-else />
               </el-icon>
               <span class="activity-main">
-                <strong>{{ record.questionId }} 号题目</strong>
+                <strong>{{ record.questionTitle || '未知题目' }}</strong>
                 <small>{{ formatDate(record.submitTime || record.createTime) }}</small>
               </span>
               <el-tag size="small" :type="record.submitStatus === 'AC' ? 'success' : 'danger'">
@@ -160,12 +167,46 @@
         </section>
       </section>
     </main>
+
+    <el-dialog v-model="profileDialogVisible" title="编辑资料" width="460px" class="profile-dialog">
+      <el-form label-position="top">
+        <el-form-item label="昵称">
+          <el-input v-model="profileForm.nickName" maxlength="24" show-word-limit placeholder="输入昵称" />
+        </el-form-item>
+        <el-form-item label="个人简介">
+          <el-input
+            v-model="profileForm.bio"
+            type="textarea"
+            :rows="4"
+            maxlength="120"
+            show-word-limit
+            placeholder="简单介绍一下自己"
+          />
+        </el-form-item>
+        <el-form-item label="生日">
+          <el-date-picker
+            v-model="profileForm.birthday"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择生日"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="profileDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="profileSaving" @click="saveProfile">保存</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/User'
 import { ElMessage } from 'element-plus'
 import {
   ArrowDown,
@@ -180,11 +221,13 @@ import {
 import userApi from '@/api/userApi'
 import questionApi from '@/api/questionApi'
 import reviewApi from '@/api/reviewApi'
+import { normalizeAvatarUrl } from '@/utils/avatar'
 import type UserDto from '@/types/UserDto'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
 
 interface SubmitRecord {
   submitRecordId: string
+  questionTitle?: string
   questionId: number
   submitStatus?: string
   submitTime?: string
@@ -193,15 +236,28 @@ interface SubmitRecord {
 }
 
 const router = useRouter()
+const userStore = useUserStore()
 const loading = ref(false)
+const profileSaving = ref(false)
+const avatarUploading = ref(false)
+const profileDialogVisible = ref(false)
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 const userInfo = ref<Partial<UserDto>>({})
 const submitRecords = ref<SubmitRecord[]>([])
 const favorites = ref<FavoriteCollection[]>([])
+const profileForm = reactive({
+  nickName: '',
+  bio: '',
+  birthday: '',
+})
 
 const localUserId = computed(() => localStorage.getItem('userId') || '')
 const localUserName = computed(() => localStorage.getItem('userName') || 'coder')
 const displayName = computed(() => userInfo.value.nickName || userInfo.value.userName || localUserName.value)
-const avatarUrl = computed(() => userInfo.value.avatarUrl || localStorage.getItem('avatarUrl') || '')
+const avatarUrl = computed(() => {
+  const url = userInfo.value.avatarUrl || localStorage.getItem('avatarUrl') || ''
+  return normalizeAvatarUrl(url)
+})
 const avatarText = computed(() => displayName.value.slice(0, 2).toUpperCase())
 const favoriteCount = computed(() => favorites.value.length)
 const preferredLanguages = computed(() => {
@@ -231,6 +287,7 @@ const normalizeUser = (raw: any): Partial<UserDto> => ({
 
 const normalizeRecord = (raw: any): SubmitRecord => ({
   submitRecordId: String(raw.submitRecordId ?? raw.submit_record_id ?? `${raw.questionId}-${raw.createTime}`),
+  questionTitle: raw.questionTitle ?? raw.question_title,
   questionId: Number(raw.questionId ?? raw.question_id),
   submitStatus: raw.submitStatus ?? raw.submit_status,
   submitTime: raw.submitTime ?? raw.submit_time,
@@ -238,19 +295,87 @@ const normalizeRecord = (raw: any): SubmitRecord => ({
   language: raw.language,
 })
 
+const getCursorRecords = (res: any): any[] => {
+  const payload = res?.data ?? res
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.records)) return payload.records
+  return []
+}
+
+const applyUserInfo = (user: Partial<UserDto>) => {
+  userInfo.value = normalizeUser(user)
+  userStore.updateUser(userInfo.value)
+}
+
+const openProfileDialog = () => {
+  profileForm.nickName = userInfo.value.nickName || ''
+  profileForm.bio = userInfo.value.bio || ''
+  profileForm.birthday = userInfo.value.birthday || ''
+  profileDialogVisible.value = true
+}
+
 const loadProfile = async () => {
   loading.value = true
   try {
     const [userRes, recordsRes, favoritesRes]: any[] = await Promise.all([
       localUserId.value ? userApi.getUserById(localUserId.value) : Promise.resolve(null),
-      questionApi.getUserSubmitRecords(),
+      questionApi.getUserSubmitRecords({ pageSize: 30 }),
       reviewApi.listFavorites(),
     ])
-    userInfo.value = normalizeUser(userRes?.data || userRes || {})
-    submitRecords.value = (recordsRes?.data || recordsRes || []).map(normalizeRecord)
+    applyUserInfo(userRes?.data || userRes || {})
+    submitRecords.value = getCursorRecords(recordsRes).map(normalizeRecord)
     favorites.value = favoritesRes?.data || favoritesRes || []
   } finally {
     loading.value = false
+  }
+}
+
+const saveProfile = async () => {
+  profileSaving.value = true
+  try {
+    let latestUser: Partial<UserDto> = { ...userInfo.value }
+    const nickName = profileForm.nickName.trim()
+    const bio = profileForm.bio.trim()
+    const birthday = profileForm.birthday
+
+    if (nickName && nickName !== userInfo.value.nickName) {
+      const res: any = await userApi.updateNickName(nickName)
+      latestUser = res?.data || res || latestUser
+    }
+    if (bio !== (userInfo.value.bio || '')) {
+      const res: any = await userApi.updateBio(bio)
+      latestUser = res?.data || res || latestUser
+    }
+    if (birthday && birthday !== userInfo.value.birthday) {
+      const res: any = await userApi.updateBirthday(birthday)
+      latestUser = res?.data || res || latestUser
+    }
+
+    applyUserInfo(latestUser)
+    profileDialogVisible.value = false
+    ElMessage.success('资料已更新')
+  } finally {
+    profileSaving.value = false
+  }
+}
+
+const handleAvatarChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  avatarUploading.value = true
+  try {
+    const res: any = await userApi.uploadAvatar(file)
+    const avatar = res?.data || res?.message || ''
+    if (avatar && avatar !== 'success') {
+      applyUserInfo({ ...userInfo.value, avatarUrl: avatar })
+    } else {
+      await loadProfile()
+    }
+    ElMessage.success('头像已更新')
+  } finally {
+    avatarUploading.value = false
+    input.value = ''
   }
 }
 
@@ -272,6 +397,15 @@ const goHome = () => router.push('/home')
 const goReview = () => router.push('/review')
 const goFavorites = () => router.push('/favorites')
 const handleProfileCommand = (command: string) => {
+  if (command === 'avatar') {
+    if (avatarUploading.value) return
+    avatarInputRef.value?.click()
+    return
+  }
+  if (command === 'profile') {
+    openProfileDialog()
+    return
+  }
   if (command === 'password') {
     ElMessage.info('修改密码入口后续可以接到设置弹窗')
   }
@@ -432,6 +566,16 @@ onMounted(loadProfile)
 
 .more-button {
   min-width: 84px;
+}
+
+.avatar-input {
+  display: none;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .side-card {
@@ -638,8 +782,24 @@ onMounted(loadProfile)
 }
 
 .activity-list {
+  max-height: 430px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  padding-right: 6px;
+}
+
+.activity-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.activity-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d8dde5;
+}
+
+.activity-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .activity-item {

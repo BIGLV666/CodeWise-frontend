@@ -18,6 +18,22 @@ const userApi={
      },
      getUserById(id: string) {
         return request.get('/user/getuserbyid', { params: { id } })
+     },
+     updateNickName(nickName: string) {
+        return request.put('/user/nickname', null, { params: { nickName } })
+     },
+     updateBio(bio: string) {
+        return request.put('/user/bio', null, { params: { bio } })
+     },
+     updateBirthday(birthday: string) {
+        return request.put('/user/birthday', null, { params: { birthday } })
+     },
+     uploadAvatar(file: File) {
+        const formData = new FormData()
+        formData.append('file', file)
+        return request.post('/user/avatar', formData, {
+           headers: { 'Content-Type': 'multipart/form-data' }
+        })
      }
 
 }

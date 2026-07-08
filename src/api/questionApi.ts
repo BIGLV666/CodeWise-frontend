@@ -2,6 +2,7 @@ import request from "./request";
 export interface JudgeRequest {
   code: string
   language: string
+  questionTitle:string
   questionId: number
   submitScene?: 'REVIEW' | string
 }
@@ -49,8 +50,8 @@ const questionApi={
        getSubmitRecord(questionId:number){
       return request.get('/question/getsubmitrecordsbyquestionid',{params:{questionId}})
     },
-    getUserSubmitRecords() {
-      return request.get('/question/getsubmitrecordsbyuserid')
+    getUserSubmitRecords(params: { pageSize: number; lastId?: string | number | null }) {
+      return request.get('/question/getsubmitrecordsbyuserid', { params })
     },
     debug(data: { userId: string; code: string; language: string; questionId: number; tests: DebugTestCase[] }) {
       return request.post('/question/debug', data)

@@ -1,85 +1,109 @@
 // src/utils/websocket.ts
-import { Client } from '@stomp/stompjs'
+import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs'
+
+type Listener = (data: any) => void
 
 class WebSocketService {
   private client: Client | null = null
-  private listeners: Map<string, Function[]> = new Map()
+  private listeners: Map<string, Set<Listener>> = new Map()
+  private subscriptions: Map<string, StompSubscription> = new Map()
 
   connect(url: string, token: string) {
     const userId = localStorage.getItem('userId')
     const judgeQueue = `/queue/judge-result-${userId}`
     const debugQueue = `/queue/debug-judge-result-${userId}`
-    
-    console.log('🔌 WebSocket 连接中...')
-    console.log('📡 订阅判题队列:', judgeQueue)
-    console.log('📡 订阅调试队列:', debugQueue)
+
+    if (this.client?.active) {
+      return
+    }
+
+    console.log('WebSocket connecting...')
+    console.log('Subscribe judge queue:', judgeQueue)
+    console.log('Subscribe debug queue:', debugQueue)
 
     this.client = new Client({
       brokerURL: url,
       connectHeaders: {
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       },
-      debug: (str) => console.log('📡', str),
+      debug: (str) => console.log('STOMP:', str),
       reconnectDelay: 3000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
     })
 
     this.client.onConnect = () => {
-      console.log('✅ WebSocket 连接成功')
-      
-      // ✅ 订阅判题结果
-      this.client?.subscribe(judgeQueue, (message) => {
-        console.log('📩 收到判题结果:', message.body)
-        try {
-          const data = JSON.parse(message.body)
-          this.emit('judge-result', data)
-        } catch (e) {
-          console.error('解析消息失败:', e)
-        }
+      console.log('WebSocket connected')
+      this.subscribeOnce('judge-result', judgeQueue, (message) => {
+        console.log('Received judge result:', message.body)
+        this.parseAndEmit('judge-result', message)
       })
-
-      // ✅ 订阅调试结果
-      this.client?.subscribe(debugQueue, (message) => {
-        console.log('📩 收到调试结果:', message.body)
-        try {
-          const data = JSON.parse(message.body)
-          this.emit('debug-judge-result', data)
-        } catch (e) {
-          console.error('解析消息失败:', e)
-        }
+      this.subscribeOnce('debug-judge-result', debugQueue, (message) => {
+        console.log('Received debug result:', message.body)
+        this.parseAndEmit('debug-judge-result', message)
       })
     }
 
     this.client.onStompError = (frame) => {
-      console.error('❌ STOMP 错误:', frame)
+      console.error('STOMP error:', frame)
     }
 
     this.client.onWebSocketError = (error) => {
-      console.error('❌ WebSocket 错误:', error)
+      console.error('WebSocket error:', error)
     }
 
     this.client.activate()
   }
 
-  on(event: string, callback: Function) {
+  on(event: string, callback: Listener) {
     if (!this.listeners.has(event)) {
-      this.listeners.set(event, [])
+      this.listeners.set(event, new Set())
     }
-    this.listeners.get(event)!.push(callback)
+    this.listeners.get(event)!.add(callback)
+    return () => this.off(event, callback)
+  }
+
+  off(event: string, callback: Listener) {
+    this.listeners.get(event)?.delete(callback)
+  }
+
+  clearListeners(event?: string) {
+    if (event) {
+      this.listeners.delete(event)
+      return
+    }
+    this.listeners.clear()
+  }
+
+  private subscribeOnce(key: string, destination: string, callback: (message: IMessage) => void) {
+    this.subscriptions.get(key)?.unsubscribe()
+    const subscription = this.client?.subscribe(destination, callback)
+    if (subscription) {
+      this.subscriptions.set(key, subscription)
+    }
+  }
+
+  private parseAndEmit(event: string, message: IMessage) {
+    try {
+      this.emit(event, JSON.parse(message.body))
+    } catch (error) {
+      console.error('Failed to parse websocket message:', error)
+    }
   }
 
   private emit(event: string, data: any) {
-    console.log('📤 emit 触发:', event, data)
+    console.log('emit:', event, data)
     const callbacks = this.listeners.get(event)
-    if (callbacks) {
-      callbacks.forEach(cb => cb(data))
-    } else {
-      console.warn('⚠️ 没有监听器 for event:', event)
+    if (!callbacks?.size) {
+      console.warn('No listener for event:', event)
+      return
     }
+    callbacks.forEach((callback) => callback(data))
   }
 
   disconnect() {
+    this.subscriptions.forEach((subscription) => subscription.unsubscribe())
+    this.subscriptions.clear()
     if (this.client) {
       this.client.deactivate()
       this.client = null

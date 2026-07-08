@@ -66,7 +66,7 @@
           <el-button size="small" @click="handleSubmit()" :loading="submitting">
             🚀 提交
           </el-button>
-          <el-button size="small" @click="handleRun">▶️ 运行</el-button>
+          <el-button size="small" @click="handleDebug">▶️ 调试</el-button>
           <el-button size="small" @click="handleFormat">📐 格式化</el-button>
           <span class="editor-status" :class="{ 'is-typing': isTyping }">
             {{ editorStatus }}
@@ -171,28 +171,64 @@ const submissionsLoaded = ref(false)
 
 // ====== 代码保存 ======
 const SAVE_KEY_PREFIX = 'codewise_code_'
+const LEGACY_CODE_LANGUAGES = ['cpp', 'c', 'java', 'python', 'go', 'csharp', 'javascript']
+const CODE_EXPIRE_TIME = 7 * 24 * 60 * 60 * 1000
+
+const getCurrentQuestionId = () => {
+  const questionId = route.query.questionId
+  return Array.isArray(questionId) ? questionId[0] : questionId
+}
+
+const getCurrentUserId = () => localStorage.getItem('userId') || 'guest'
+
+const getCodeSaveKey = (questionId: string, language: string) => {
+  return `${SAVE_KEY_PREFIX}${getCurrentUserId()}_${questionId}_${language}`
+}
+
+const clearLegacySavedCodes = () => {
+  try {
+    LEGACY_CODE_LANGUAGES.forEach((language) => {
+      localStorage.removeItem(`${SAVE_KEY_PREFIX}${language}`)
+    })
+  } catch (e) { console.warn('清理旧代码缓存失败:', e) }
+}
+
+clearLegacySavedCodes()
 
 const saveCode = (language: string, code: string) => {
-  const key = `${SAVE_KEY_PREFIX}${language}`
-  const data = { code, language, timestamp: Date.now(), questionId: route.query.questionId }
+  const questionId = getCurrentQuestionId()
+  if (!questionId) return
+
+  const key = getCodeSaveKey(String(questionId), language)
+  const data = {
+    code,
+    language,
+    timestamp: Date.now(),
+    questionId: String(questionId),
+    userId: getCurrentUserId(),
+    questionTitle: questionData.value?.title || ''
+  }
   try {
     localStorage.setItem(key, JSON.stringify(data))
   } catch (e) { console.warn('保存代码失败:', e) }
 }
 
 const loadCode = (language: string): string | null => {
-  const key = `${SAVE_KEY_PREFIX}${language}`
+  const questionId = getCurrentQuestionId()
+  if (!questionId) return null
+
+  const key = getCodeSaveKey(String(questionId), language)
   try {
     const raw = localStorage.getItem(key)
-    if (!raw) return null
+    if (!raw) return getDefaultCode(language)
+
     const data = JSON.parse(raw)
-    const expireTime = 7 * 24 * 60 * 60 * 1000
-    if (Date.now() - data.timestamp > expireTime) {
+    if (Date.now() - data.timestamp > CODE_EXPIRE_TIME) {
       localStorage.removeItem(key)
       return null
     }
-    if (data.questionId !== route.query.questionId) return null
-    return data.code
+    if (String(data.questionId) !== String(questionId)) return null
+    return typeof data.code === 'string' ? data.code : null
   } catch (e) { return null }
 }
 
@@ -235,6 +271,7 @@ const handleSubmit = async () => {
       code: code,
       language: selectedLanguage.value,
       questionId: Number(questionId),
+      questionTitle: questionData.value?.title || '',
       submitScene: getSubmitScene(),
     })
     if (response.code === 200) {
@@ -551,14 +588,17 @@ const setupWebSocket = async () => {
     console.log('✅ WebSocket 已连接')
 
     // ✅ 订阅判题结果
+    websocketService.clearListeners('judge-result')
+    websocketService.clearListeners('debug-judge-result')
+
     websocketService.on('judge-result', (data: JudgeResultDTO) => {
       console.log('📩 收到判题结果:', data)
       judgeResult.value = data
       judgeProgress.value = 100
       if (data.submitStatus === 'AC') {
-        ElMessage.success('🎉 恭喜通过！')
+
       } else if (data.submitStatus === 'PENDING') {
-        ElMessage.info('判题中...')
+
       } else {
         ElMessage.error(`❌ ${statusMap[data.submitStatus]?.text || data.submitStatus}`)
       }
@@ -581,7 +621,7 @@ const setupWebSocket = async () => {
         selectedTestCaseIndex.value = firstResultIndex
       }
       debugging.value = false
-      ElMessage.success(`调试完成，共 ${results.length} 个用例`)
+
     })
 
   } catch (error) {
@@ -1004,6 +1044,8 @@ onBeforeUnmount(() => {
     editor = null
   }
   websocketService.disconnect()
+  websocketService.clearListeners('judge-result')
+  websocketService.clearListeners('debug-judge-result')
   clearTimeout(formatTimeout)
   clearTimeout(saveTimeout)
 })

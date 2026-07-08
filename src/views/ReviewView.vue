@@ -259,7 +259,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onActivated, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -271,7 +271,7 @@ import {
   Setting,
   VideoPlay,
 } from '@element-plus/icons-vue'
-import reviewApi, { type ReviewConfig, type ReviewQuestionDto } from '@/api/reviewApi'
+import reviewApi, { type ReviewConfig, type ReviewQuestionDto, type ReviewRecord } from '@/api/reviewApi'
 
 type ReviewQuestion = ReviewQuestionDto & {
   questionId: string
@@ -337,6 +337,7 @@ const activeConfigPanels = ref<string[]>([])
 const errorMessage = ref('')
 const selectedPreset = ref<PresetValue>('standard')
 const reviewTasks = ref<ReviewQuestion[]>([])
+const reviewRecord = ref<ReviewRecord | null>(null)
 const reviewConfig = ref<ReviewConfig>({})
 const configForm = reactive({
   reviewCount: 20,
@@ -356,9 +357,16 @@ const activePresetLabel = computed(() => {
   return reviewPresets.find((preset) => preset.value === selectedPreset.value)?.label || '自定义'
 })
 
-const totalTasks = computed(() => reviewTasks.value.length)
-const pendingTasks = computed(() => reviewTasks.value.length)
-const progressPercent = computed(() => (totalTasks.value === 0 ? 100 : 0))
+const pendingTasks = computed(() => reviewRecord.value?.pendingReviewQuestionIds?.length ?? reviewTasks.value.length)
+const completedTasks = computed(() => reviewRecord.value?.completedReviewQuestionIds?.length ?? 0)
+const totalTasks = computed(() => {
+  const total = pendingTasks.value + completedTasks.value
+  return total > 0 ? total : reviewTasks.value.length
+})
+const progressPercent = computed(() => {
+  if (totalTasks.value === 0) return 100
+  return Math.min(100, Math.round((completedTasks.value / totalTasks.value) * 100))
+})
 const ringStyle = computed(() => {
   const circumference = 364.4
   return {
@@ -384,6 +392,21 @@ const normalizeListResponse = (res: any): ReviewQuestion[] => {
       title: item.title || `题目 ${item.questionId}`,
     }))
     .filter((item: ReviewQuestion) => item.questionId)
+}
+
+const normalizeTodayReviewResponse = (res: any) => {
+  const payload = res?.data ?? res
+  if (Array.isArray(payload)) {
+    return {
+      questions: normalizeListResponse(payload),
+      record: null,
+    }
+  }
+
+  return {
+    questions: normalizeListResponse(payload?.questions ?? []),
+    record: payload?.reviewRecord ?? null,
+  }
 }
 
 const inferPreset = () => {
@@ -412,11 +435,14 @@ const loadReviewPage = async () => {
   errorMessage.value = ''
   try {
     const [todayRes, configRes]: any[] = await Promise.all([reviewApi.getTodayReview(), reviewApi.getReviewConfig()])
-    reviewTasks.value = normalizeListResponse(todayRes)
+    const todayReview = normalizeTodayReviewResponse(todayRes)
+    reviewTasks.value = todayReview.questions
+    reviewRecord.value = todayReview.record
     applyConfig(configRes?.data || configRes || {})
   } catch (error) {
     errorMessage.value = '复习计划加载失败，请确认后端服务和登录状态正常'
     reviewTasks.value = []
+    reviewRecord.value = null
   } finally {
     loading.value = false
   }
@@ -501,6 +527,7 @@ const startReview = () => {
 }
 
 onMounted(loadReviewPage)
+onActivated(loadReviewPage)
 </script>
 
 <style scoped>

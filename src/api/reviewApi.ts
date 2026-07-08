@@ -7,6 +7,22 @@ export interface ReviewQuestionDto extends FavoriteQuestionDto {
   totalAc?: number
 }
 
+export interface ReviewRecord {
+  reviewRecordId?: string
+  userId?: string
+  pendingReviewQuestionIds?: Array<string | number>
+  completedReviewQuestionIds?: Array<string | number>
+  acQuestionIds?: Array<string | number>
+  reviewDays?: number
+  reviewDate?: string
+  createTime?: string
+}
+
+export interface TodayReviewResponse {
+  reviewRecord?: ReviewRecord
+  questions?: ReviewQuestionDto[]
+}
+
 export interface ReviewConfig {
   reviewConfigId?: string
   userId?: string
@@ -89,7 +105,7 @@ const reviewApi = {
   },
 
   getTodayReview() {
-    return request.get<ReviewQuestionDto[]>('/review/review/today')
+    return request.get<TodayReviewResponse | ReviewQuestionDto[]>('/review/review/today')
   },
 
   getReviewConfig() {

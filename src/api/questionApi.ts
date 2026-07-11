@@ -41,6 +41,9 @@ const questionApi={
     cursorquestions(params:any){
         return request.get('/question/cursorquestions', { params })
     },
+    getTotal(){
+        return request.get('/question/total')
+    },
     getQuestionById(questionId:number){
         return request.get('/question/getquestionbyid',{params:{questionId}})
     },

@@ -5,12 +5,16 @@
         <div class="favorite-mark">
           <el-icon><StarFilled /></el-icon>
         </div>
-        <h1>我的收藏</h1>
-        <p>已创建：{{ totalCount }} 道题</p>
+        <h1>{{ favoriteName || '我的收藏' }}</h1>
+        <p>{{ favoriteContent || `共 ${totalCount} 道题` }}</p>
       </div>
       <div class="header-actions">
-        <el-button :icon="Edit" circle />
-        <el-button :icon="MoreFilled" circle />
+        <el-tooltip content="编辑收藏夹" placement="top">
+          <el-button :icon="Edit" circle @click="$emit('edit-favorite')" />
+        </el-tooltip>
+        <el-tooltip content="删除收藏夹" placement="top">
+          <el-button :icon="Delete" circle type="danger" plain @click="$emit('delete-favorite')" />
+        </el-tooltip>
       </div>
     </div>
 
@@ -18,14 +22,13 @@
       <el-button class="start-button" type="info" :icon="VideoPlay" @click="$emit('start-practice')">
         开始练习
       </el-button>
-      <el-button :icon="Plus" />
     </div>
 
     <el-divider />
 
     <div class="progress-title">
       <span>练习进度</span>
-      <el-button :icon="Refresh" text size="small" />
+      <small>{{ solvedCount }} / {{ totalCount }}</small>
     </div>
     <div class="progress-body">
       <el-progress type="circle" :percentage="progressPercent" :width="132" :stroke-width="10" color="#67c23a">
@@ -53,9 +56,11 @@
 </template>
 
 <script setup lang="ts">
-import { Edit, MoreFilled, Plus, Refresh, StarFilled, VideoPlay } from '@element-plus/icons-vue'
+import { Delete, Edit, StarFilled, VideoPlay } from '@element-plus/icons-vue'
 
 defineProps<{
+  favoriteName: string
+  favoriteContent?: string
   totalCount: number
   solvedCount: number
   progressPercent: number
@@ -73,12 +78,14 @@ defineProps<{
 
 defineEmits<{
   (event: 'start-practice'): void
+  (event: 'edit-favorite'): void
+  (event: 'delete-favorite'): void
 }>()
 </script>
 
 <style scoped>
 .progress-card {
-  border-radius: 10px;
+  border-radius: 8px;
   border-color: #e8ecf1;
 }
 
@@ -92,7 +99,7 @@ defineEmits<{
 .favorite-mark {
   width: 56px;
   height: 56px;
-  border-radius: 10px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -104,14 +111,15 @@ defineEmits<{
 
 .collection-header h1 {
   margin: 0;
-  font-size: 30px;
-  line-height: 38px;
+  font-size: 28px;
+  line-height: 36px;
 }
 
 .collection-header p {
   margin: 6px 0 0;
   color: #8c8c8c;
   font-size: 14px;
+  line-height: 1.6;
 }
 
 .header-actions,
@@ -141,6 +149,12 @@ defineEmits<{
   margin-bottom: 18px;
   font-size: 16px;
   font-weight: 600;
+}
+
+.progress-title small {
+  color: #8c8c8c;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .progress-body {

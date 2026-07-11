@@ -580,7 +580,7 @@ const setupWebSocket = async () => {
     }
 
     // ✅ 使用 ws:// 协议
-    const wsUrl = `ws://localhost:8084/websocket?token=${token}`
+    const wsUrl = `ws://localhost:8082/websocket?token=${token}`
     console.log('📡 准备连接 WebSocket:', wsUrl)
 
     // ✅ 等待连接完成
@@ -591,9 +591,9 @@ const setupWebSocket = async () => {
     websocketService.clearListeners('judge-result')
     websocketService.clearListeners('debug-judge-result')
 
-    websocketService.on('judge-result', (data: JudgeResultDTO) => {
+    websocketService.on('judge-result', (data: any) => {
       console.log('📩 收到判题结果:', data)
-      judgeResult.value = data
+      judgeResult.value = data.result
       judgeProgress.value = 100
       if (data.submitStatus === 'AC') {
 
@@ -606,17 +606,18 @@ const setupWebSocket = async () => {
     })
 
     // ✅ 订阅调试结果
-    websocketService.on('debug-judge-result', (results: JudgeReturnRecordDto[]) => {
-      console.log('📩 收到调试结果:', results)
+    websocketService.on('debug-judge-result', (resultsBodey: any) => {
+      console.log('📩 收到调试结果:', resultsBodey)
+      const results = resultsBodey.result || []
 
-      debugTestCases.value.forEach((tc, index) => {
+      debugTestCases.value.forEach((tc: any, index: number) => {
         if (index < results.length) {
           tc.result = results[index]
           tc.passed = tc.expectedOutput?.trim() === results[index].userOutput?.trim()
         }
       })
 
-      const firstResultIndex = debugTestCases.value.findIndex(tc => tc.result)
+      const firstResultIndex = debugTestCases.value.findIndex((tc: any) => tc.result)
       if (firstResultIndex !== -1) {
         selectedTestCaseIndex.value = firstResultIndex
       }
@@ -640,7 +641,7 @@ const handleFormat = () => {
     const model = editor.getModel()
     if (!model) return
     const value = model.getValue()
-    const formatted = value.split('\n').map(line => line.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n')
+    const formatted = value.split('\n').map((line: any) => line.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n')
     if (formatted !== value) { model.setValue(formatted); ElMessage.success('格式化完成 ✅') } else { ElMessage.info('代码已是格式化的') }
   } catch (error) { console.error('格式化失败:', error); ElMessage.error('格式化失败') }
 }
@@ -733,7 +734,7 @@ const loadFavoriteOptions = async () => {
 
     const routeFavoriteId = Array.isArray(route.query.favoriteId) ? route.query.favoriteId[0] : route.query.favoriteId
     const matchedRouteFavorite = routeFavoriteId
-      ? favoriteOptions.value.find((item) => item.favoritesId === String(routeFavoriteId))
+      ? favoriteOptions.value.find((item: any) => item.favoritesId === String(routeFavoriteId))
       : undefined
     selectedAddFavoriteId.value = matchedRouteFavorite?.favoritesId || favoriteOptions.value[0]?.favoritesId || ''
   } finally {

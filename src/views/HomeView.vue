@@ -9,7 +9,7 @@
         <nav class="nav-menu">
           <button type="button" class="nav-item active" @click="refreshQuestions">题库</button>
           <button type="button" class="nav-item">竞赛</button>
-          <button type="button" class="nav-item">讨论</button>
+          <button type="button" class="nav-item" @click="goDiscuss">讨论</button>
           <button type="button" class="nav-item" @click="goReview">复习</button>
         </nav>
       </div>
@@ -25,9 +25,7 @@
           @input="handleSearch"
           @clear="handleSearch"
         />
-        <el-badge :value="0" class="badge-item" :hidden="true">
-          <el-button :icon="Bell" circle size="small" />
-        </el-badge>
+        <el-button :icon="Bell" circle size="small" />
         <button class="avatar-entry" type="button" @click="goProfile" aria-label="进入个人主页">
           <el-avatar :size="32" :src="profileAvatarUrl">{{ profileAvatarText }}</el-avatar>
         </button>
@@ -41,6 +39,7 @@
           <button class="menu-item active" type="button" @click="refreshQuestions">
             <el-icon><Collection /></el-icon>
             <span>全部题目</span>
+
           </button>
           <button class="menu-item" type="button" @click="openFavorites()">
             <el-icon><Star /></el-icon>
@@ -107,9 +106,10 @@
                 clearable
                 @change="handleFilterChange"
               >
-                <el-option label="全部" :value="0" />
-                <el-option label="已解答" :value="1" />
-                <el-option label="未尝试" :value="2" />
+                <el-option label="全部" value="" />
+                <el-option label="未尝试" :value="0" />
+                <el-option label="已通过" :value="1" />
+                <el-option label="尝试过" :value="2" />
               </el-select>
             </div>
           </div>
@@ -122,11 +122,14 @@
               row-key="questionId"
               @row-click="goToDetail"
             >
-              <el-table-column prop="title" label="题目" min-width="220">
+              <el-table-column prop="title" label="题目" min-width="240">
                 <template #default="{ row }">
                   <div class="problem-title" :data-question-id="row.questionId">
                     <span class="problem-id">{{ row.questionId }}</span>
-                    <span v-if="row.status === 1" class="solved-tag">已解答</span>
+                    <span class="problem-name">{{ row.title }}</span>
+                    <el-tag :type="getStatusTagType(row.status)" size="small" effect="light" round>
+                      {{ getStatusLabel(row.status) }}
+                    </el-tag>
                   </div>
                 </template>
               </el-table-column>
@@ -155,7 +158,7 @@
             </div>
 
             <div v-if="!hasMore && problemList.length > 0" class="no-more">
-              已加载全部 {{ totalCount }} 道题目
+              已加载全部 {{ totalCount || problemList.length }} 道题目
             </div>
 
             <div v-if="!loading && problemList.length === 0" class="empty-state">
@@ -232,7 +235,7 @@
 
         <section class="stats-card quick-stats">
           <div class="stat-row">
-            <span class="stat-label">已解答</span>
+            <span class="stat-label">已通过</span>
             <span class="stat-value">{{ solvedCount }}</span>
           </div>
           <div class="stat-row">
@@ -264,21 +267,18 @@ import type { FavoriteCollection } from '@/types/FavoriteProblem'
 interface Question {
   questionId: number
   title: string
-  description?: string
   difficulty: number
   passRate: number
   totalSubmit: number
   totalAc: number
   status: number
   tags?: string
-  createTime?: string
 }
 
 interface SubmitRecord {
   submitRecordId?: string | number
   submitTime?: string
   createTime?: string
-  submitStatus?: string
 }
 
 interface CalendarDay {
@@ -292,7 +292,7 @@ interface CalendarDay {
 const userStore = useUserStore()
 const searchKeyword = ref('')
 const difficultyFilter = ref<number[]>([1, 2, 3])
-const statusFilter = ref<number>(0)
+const statusFilter = ref<number | ''>('')
 const problemList = ref<Question[]>([])
 const lastId = ref<number | null>(null)
 const hasMore = ref(true)
@@ -336,9 +336,7 @@ const streakDays = computed(() => {
   for (let i = 0; i < 30; i++) {
     const date = new Date(today)
     date.setDate(today.getDate() - i)
-    const dateKey = toDateKey(date)
-    const day = calendarDays.value.find((item) => item.date === dateKey)
-
+    const day = calendarDays.value.find((item) => item.date === toDateKey(date))
     if (day?.hasSubmit) {
       streak++
       continue
@@ -359,14 +357,12 @@ const unwrapData = <T,>(res: any, fallback: T): T => {
 const normalizeQuestion = (raw: any): Question => ({
   questionId: Number(raw.questionId ?? raw.question_id),
   title: raw.title ?? raw.questionTitle ?? raw.question_title ?? '未命名题目',
-  description: raw.description,
   difficulty: Number(raw.difficulty ?? 1),
   passRate: Number(raw.passRate ?? raw.pass_rate ?? 0),
   totalSubmit: Number(raw.totalSubmit ?? raw.total_submit ?? 0),
   totalAc: Number(raw.totalAc ?? raw.total_ac ?? 0),
   status: Number(raw.status ?? 0),
   tags: raw.tags,
-  createTime: raw.createTime ?? raw.create_time,
 })
 
 const mapFavorite = (item: any): FavoriteCollection => {
@@ -392,9 +388,7 @@ const normalizeRate = (rate: number) => {
   return rate > 1 ? rate / 100 : rate
 }
 
-const formatRate = (rate: number) => {
-  return `${(normalizeRate(rate) * 100).toFixed(1)}%`
-}
+const formatRate = (rate: number) => `${(normalizeRate(rate) * 100).toFixed(1)}%`
 
 const getDifficultyType = (difficulty: number) => {
   const map = { 1: 'success', 2: 'warning', 3: 'danger' } as const
@@ -404,6 +398,16 @@ const getDifficultyType = (difficulty: number) => {
 const getDifficultyLabel = (difficulty: number) => {
   const map: Record<number, string> = { 1: '简单', 2: '中等', 3: '困难' }
   return map[difficulty] || '未知'
+}
+
+const getStatusLabel = (status: number) => {
+  const map: Record<number, string> = { 0: '未尝试', 1: '已通过', 2: '尝试过' }
+  return map[status] || '未知'
+}
+
+const getStatusTagType = (status: number) => {
+  const map = { 0: 'info', 1: 'success', 2: 'warning' } as const
+  return map[status as 0 | 1 | 2] || 'info'
 }
 
 const getFavoriteDescription = (favorite: FavoriteCollection) => {
@@ -419,16 +423,23 @@ const buildQuestionParams = (isRefresh: boolean) => {
   if (difficultyFilter.value.length > 0 && difficultyFilter.value.length < 3) {
     params.difficulty = difficultyFilter.value.join(',')
   }
-  if (statusFilter.value === 1) {
-    params.status = 1
-  } else if (statusFilter.value === 2) {
-    params.status = 0
+  if (statusFilter.value !== '') {
+    params.status = statusFilter.value
   }
   if (searchKeyword.value.trim()) {
     params.title = searchKeyword.value.trim()
   }
 
   return params
+}
+
+const loadQuestionTotal = async () => {
+  try {
+    const res: any = await questionApi.getTotal()
+    totalCount.value = Number(unwrapData<number>(res, 0))
+  } catch (error) {
+    console.warn('加载题目总数失败:', error)
+  }
 }
 
 const loadQuestions = async (isRefresh = false) => {
@@ -445,9 +456,7 @@ const loadQuestions = async (isRefresh = false) => {
 
     if (isRefresh) {
       problemList.value = records
-      if (scrollContainer.value) {
-        scrollContainer.value.scrollTop = 0
-      }
+      if (scrollContainer.value) scrollContainer.value.scrollTop = 0
     } else {
       problemList.value = [...problemList.value, ...records]
       if (scrollContainer.value && savedScrollTop > 0) {
@@ -459,7 +468,9 @@ const loadQuestions = async (isRefresh = false) => {
 
     lastId.value = data.nextCursor ?? null
     hasMore.value = Boolean(data.hasNext)
-    totalCount.value = Number(data.total ?? problemList.value.length)
+    if (data.total !== undefined && !totalCount.value) {
+      totalCount.value = Number(data.total)
+    }
   } catch (error) {
     console.error('加载题目失败:', error)
     ElMessage.error('加载题目失败')
@@ -480,9 +491,7 @@ const handleSearch = () => {
   searchTimer = window.setTimeout(refreshQuestions, 220)
 }
 
-const handleFilterChange = () => {
-  refreshQuestions()
-}
+const handleFilterChange = () => refreshQuestions()
 
 const loadHomeFavorites = async () => {
   favoritesLoading.value = true
@@ -521,7 +530,7 @@ const loadUserProfile = async () => {
 
 const loadSubmitStats = async () => {
   try {
-    const res: any = await questionApi.getUserSubmitRecords({ pageSize: 100 })
+    const res: any = await questionApi.getUserSubmitRecords({ pageSize: 30 })
     const payload = unwrapData<any>(res, {})
     submitRecords.value = Array.isArray(payload.records) ? payload.records : []
   } catch (error) {
@@ -652,10 +661,11 @@ const openFavorites = (favoriteId?: string) => {
 }
 
 const goReview = () => router.push('/review')
+const goDiscuss = () => router.push('/discuss')
 const goProfile = () => router.push('/profile')
 
 onMounted(async () => {
-  await Promise.all([loadQuestions(true), loadHomeFavorites(), loadUserProfile(), loadSubmitStats()])
+  await Promise.all([loadQuestionTotal(), loadQuestions(true), loadHomeFavorites(), loadUserProfile(), loadSubmitStats()])
   window.setTimeout(restoreScrollPosition, 30)
 })
 </script>
@@ -860,15 +870,13 @@ onMounted(async () => {
   font-size: 13px;
 }
 
-.dot {
-  width: 7px;
-  height: 7px;
+.dot,
+.favorite-dot {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
+  background: #ffa116;
   flex-shrink: 0;
-}
-
-.dot.orange {
-  background: #faad14;
 }
 
 .create-btn {
@@ -978,7 +986,7 @@ onMounted(async () => {
 }
 
 .filter-select {
-  width: 120px;
+  width: 130px;
 }
 
 .table-wrapper {
@@ -1016,14 +1024,6 @@ onMounted(async () => {
 .problem-name {
   color: #1a1a2e;
   font-weight: 600;
-}
-
-.solved-tag {
-  padding: 1px 8px;
-  border-radius: 10px;
-  background: #eefaf7;
-  color: #00a38f;
-  font-size: 11px;
 }
 
 .loading-more,
@@ -1079,7 +1079,8 @@ onMounted(async () => {
   font-weight: 600;
 }
 
-.stats-month {
+.stats-month,
+.favorite-desc {
   color: #8c8c8c;
   font-size: 12px;
 }
@@ -1118,14 +1119,6 @@ onMounted(async () => {
   transform: translateY(-2px);
 }
 
-.favorite-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #ffa116;
-  flex-shrink: 0;
-}
-
 .favorite-main {
   min-width: 0;
   flex: 1;
@@ -1145,11 +1138,6 @@ onMounted(async () => {
   color: #1a1a2e;
   font-size: 13px;
   font-weight: 600;
-}
-
-.favorite-desc {
-  color: #8c8c8c;
-  font-size: 11px;
 }
 
 .favorite-count {

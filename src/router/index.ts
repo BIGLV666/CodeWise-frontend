@@ -28,6 +28,21 @@ const router = createRouter({
       component: () => import('@/views/ReviewView.vue'),
     },
     {
+      path: '/discuss',
+      name: 'discuss',
+      component: () => import('@/views/DiscussionView.vue'),
+    },
+    {
+      path: '/discuss/create',
+      name: 'discussion-create',
+      component: () => import('@/views/DiscussionComposeView.vue'),
+    },
+    {
+      path: '/discuss/:postId',
+      name: 'discussion-detail',
+      component: () => import('@/views/DiscussionDetailView.vue'),
+    },
+    {
       path: '/profile',
       name: 'profile',
       component: () => import('@/views/ProfileView.vue'),

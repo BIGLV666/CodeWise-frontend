@@ -1,4 +1,4 @@
-﻿<template>
+﻿﻿﻿﻿﻿﻿<template>
   <div class="profile-view">
     <header class="navbar">
       <div class="navbar-left">
@@ -9,7 +9,7 @@
         <nav class="nav-menu">
           <button class="nav-item" type="button" @click="goHome">题库</button>
           <button class="nav-item" type="button">竞赛</button>
-          <button class="nav-item" type="button">讨论</button>
+          <button class="nav-item" type="button" @click="goDiscuss">讨论</button>
           <button class="nav-item" type="button" @click="goReview">复习</button>
         </nav>
       </div>
@@ -395,6 +395,7 @@ const openRecordQuestion = (record: SubmitRecord) => {
 
 const goHome = () => router.push('/home')
 const goReview = () => router.push('/review')
+const goDiscuss = () => router.push('/discuss')
 const goFavorites = () => router.push('/favorites')
 const handleProfileCommand = (command: string) => {
   if (command === 'avatar') {

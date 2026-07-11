@@ -21,7 +21,6 @@
         <el-option label="困难" value="Hard" />
       </el-select>
       <el-button :icon="Sort" @click="$emit('toggle-sort')" />
-      <el-button :icon="Filter" />
     </div>
 
     <el-card class="problem-card" shadow="never">
@@ -31,16 +30,21 @@
         row-class-name="favorite-problem-row"
         style="width: 100%"
         :show-header="false"
-        @row-click="$emit('select-problem', $event)"
+        @row-click="handleRowClick"
       >
-        <el-table-column width="48">
-          <template #default>
-            <el-icon class="solved-icon"><CircleCheckFilled /></el-icon>
+        <el-table-column width="52">
+          <template #default="{ row }">
+            <el-icon class="status-icon" :class="getStatusClass(row.status)">
+              <CircleCheckFilled v-if="row.status === 1" />
+              <CircleCloseFilled v-else-if="row.status === 2" />
+              <CircleCheck v-else />
+            </el-icon>
           </template>
         </el-table-column>
         <el-table-column min-width="260">
           <template #default="{ row }">
             <div class="problem-title">{{ row.id }}. {{ row.title }}</div>
+            <div class="problem-subtitle">{{ getStatusLabel(row.status) }}</div>
           </template>
         </el-table-column>
         <el-table-column width="110" align="right">
@@ -55,22 +59,31 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column width="72" align="right">
+          <template #default="{ row }">
+            <el-tooltip content="移出收藏" placement="top">
+              <el-button
+                :icon="Delete"
+                circle
+                text
+                type="danger"
+                @click.stop="$emit('remove-problem', row)"
+              />
+            </el-tooltip>
+          </template>
+        </el-table-column>
       </el-table>
       <el-empty v-if="problems.length === 0" description="暂无匹配的收藏题目" />
     </el-card>
 
     <div class="list-footer">
       <span>显示 {{ problems.length }} / {{ totalCount }} 道题</span>
-      <div>
-        <el-button disabled>上一页</el-button>
-        <el-button disabled>下一页</el-button>
-      </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { CircleCheckFilled, Filter, Search, Sort } from '@element-plus/icons-vue'
+import { CircleCheck, CircleCheckFilled, CircleCloseFilled, Delete, Search, Sort } from '@element-plus/icons-vue'
 import type { FavoriteDifficulty, FavoriteProblem } from '@/types/FavoriteProblem'
 
 defineProps<{
@@ -80,12 +93,17 @@ defineProps<{
   difficulty: FavoriteDifficulty | ''
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (event: 'update:keyword', value: string): void
   (event: 'update:difficulty', value: FavoriteDifficulty | ''): void
   (event: 'toggle-sort'): void
   (event: 'select-problem', value: FavoriteProblem): void
+  (event: 'remove-problem', value: FavoriteProblem): void
 }>()
+
+const handleRowClick = (row: FavoriteProblem) => {
+  emit('select-problem', row)
+}
 
 const getDifficultyType = (difficulty: FavoriteDifficulty) => {
   const map: Record<FavoriteDifficulty, 'success' | 'warning' | 'danger'> = {
@@ -103,6 +121,24 @@ const getDifficultyLabel = (difficulty: FavoriteDifficulty) => {
     Hard: '困难',
   }
   return map[difficulty]
+}
+
+const getStatusLabel = (status: number) => {
+  const map: Record<number, string> = {
+    0: '未尝试',
+    1: '已通过',
+    2: '尝试过',
+  }
+  return map[status] || '未知状态'
+}
+
+const getStatusClass = (status: number) => {
+  const map: Record<number, string> = {
+    0: 'not-tried',
+    1: 'accepted',
+    2: 'attempted',
+  }
+  return map[status] || 'not-tried'
 }
 </script>
 
@@ -140,7 +176,7 @@ const getDifficultyLabel = (difficulty: FavoriteDifficulty) => {
 
 .problem-card {
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 8px;
   border-color: #e8ecf1;
 }
 
@@ -171,9 +207,20 @@ const getDifficultyLabel = (difficulty: FavoriteDifficulty) => {
   color: #ffa116;
 }
 
-.solved-icon {
-  color: #67c23a;
+.status-icon {
   font-size: 18px;
+}
+
+.status-icon.accepted {
+  color: #00a38f;
+}
+
+.status-icon.attempted {
+  color: #e6a23c;
+}
+
+.status-icon.not-tried {
+  color: #c0c4cc;
 }
 
 .problem-title {
@@ -181,6 +228,12 @@ const getDifficultyLabel = (difficulty: FavoriteDifficulty) => {
   font-size: 15px;
   font-weight: 600;
   transition: color 0.2s;
+}
+
+.problem-subtitle {
+  margin-top: 3px;
+  color: #8c8c8c;
+  font-size: 12px;
 }
 
 .acceptance {
@@ -206,11 +259,6 @@ const getDifficultyLabel = (difficulty: FavoriteDifficulty) => {
 
   .difficulty-select {
     width: 100%;
-  }
-
-  .list-footer {
-    gap: 12px;
-    flex-direction: column;
   }
 }
 </style>

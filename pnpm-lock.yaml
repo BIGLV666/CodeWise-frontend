@@ -20,12 +20,27 @@ importers:
       axios:
         specifier: ^1.18.1
         version: 1.18.1
+      dompurify:
+        specifier: ^3.4.11
+        version: 3.4.11
       element-plus:
         specifier: ^2.14.2
         version: 2.14.2(vue@3.5.39(typescript@6.0.3))
+      highlight.js:
+        specifier: ^11.11.1
+        version: 11.11.1
+      katex:
+        specifier: ^0.17.0
+        version: 0.17.0
       marked:
         specifier: ^18.0.5
         version: 18.0.5
+      marked-highlight:
+        specifier: ^2.2.4
+        version: 2.2.4(marked@18.0.5)
+      marked-katex-extension:
+        specifier: ^5.1.10
+        version: 5.1.10(katex@0.17.0)(marked@18.0.5)
       monaco-editor:
         specifier: ^0.55.1
         version: 0.55.1
@@ -1457,6 +1472,10 @@ packages:
   highlight.js@10.7.3:
     resolution: {integrity: sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==}
 
+  highlight.js@11.11.1:
+    resolution: {integrity: sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==}
+    engines: {node: '>=12.0.0'}
+
   hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
 
@@ -1643,6 +1662,10 @@ packages:
     resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
     hasBin: true
 
+  katex@0.17.0:
+    resolution: {integrity: sha512-Vdw0ATsQ9V+LuegM/BTwQqV/6cTl5lbGcIrU+BCgLxyf6bo38ybOr372tuSIxir3CN720flu1meYR6XzNMwQnw==}
+    hasBin: true
+
   khroma@2.1.0:
     resolution: {integrity: sha512-Ls993zuzfayK269Svk9hzpeGUKob/sIgZzyHYdjQoAdQetRKpOLj+k/QQQ/6Qi0Yz65mlROrfd+Ev+1+7dz9Kw==}
 
@@ -1813,6 +1836,17 @@ packages:
   markdown-it@8.4.1:
     resolution: {integrity: sha512-CzzqSSNkFRUf9vlWvhK1awpJreMRqdCrBvZ8DIoDWTOkESMIF741UPAhuAmbyWmdiFPA6WARNhnu2M6Nrhwa+A==}
     hasBin: true
+
+  marked-highlight@2.2.4:
+    resolution: {integrity: sha512-PZxisNMJDduSjc0q6uvjsnqqHCXc9s0eyzxDO9sB1eNGJnd/H1/Fu+z6g/liC1dfJdFW4SftMwMlLvsBhUPrqQ==}
+    peerDependencies:
+      marked: '>=4 <19'
+
+  marked-katex-extension@5.1.10:
+    resolution: {integrity: sha512-TuqrzguLeXXm6iBaf16leL3+dVmMj8KrBdunMVVzxMS/bwcjtQ0YG0sNytl1j7uUo8yClsXJqBbVjH1yOPurwQ==}
+    peerDependencies:
+      katex: '>=0.16 <0.18'
+      marked: '>=4 <19'
 
   marked@14.0.0:
     resolution: {integrity: sha512-uIj4+faQ+MgHgwUW1l2PsPglZLOLOT1uErt06dAPtx2kjteLAkbsd/0FiYg/MGS+i7ZKLb7w2WClxHkzOOuryQ==}
@@ -4264,6 +4298,8 @@ snapshots:
 
   highlight.js@10.7.3: {}
 
+  highlight.js@11.11.1: {}
+
   hookable@5.5.3: {}
 
   html-tags@3.3.1: {}
@@ -4413,6 +4449,10 @@ snapshots:
     dependencies:
       commander: 8.3.0
 
+  katex@0.17.0:
+    dependencies:
+      commander: 8.3.0
+
   khroma@2.1.0: {}
 
   kind-of@3.2.2:
@@ -4552,6 +4592,15 @@ snapshots:
       linkify-it: 2.0.0
       mdurl: 1.0.1
       uc.micro: 1.0.6
+
+  marked-highlight@2.2.4(marked@18.0.5):
+    dependencies:
+      marked: 18.0.5
+
+  marked-katex-extension@5.1.10(katex@0.17.0)(marked@18.0.5):
+    dependencies:
+      katex: 0.17.0
+      marked: 18.0.5
 
   marked@14.0.0: {}
 

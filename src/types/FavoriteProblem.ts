@@ -6,6 +6,7 @@ export interface FavoriteProblem {
   acceptance: string
   difficulty: FavoriteDifficulty
   solved: boolean
+  status: number
 }
 
 export interface FavoriteCollection {
@@ -22,6 +23,7 @@ export interface FavoriteCollection {
 export interface FavoriteQuestionDto {
   questionId: string
   title: string
+  questionTitle?: string
   difficulty?: number
   passRate?: number | string
   totalSubmit?: number

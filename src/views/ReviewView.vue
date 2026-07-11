@@ -9,7 +9,7 @@
         <nav class="nav-menu">
           <button class="nav-item" type="button" @click="goHome">题库</button>
           <button class="nav-item" type="button">竞赛</button>
-          <button class="nav-item" type="button">讨论</button>
+          <button class="nav-item" type="button" @click="goDiscuss">讨论</button>
           <button class="nav-item active" type="button">复习</button>
         </nav>
       </div>
@@ -508,6 +508,10 @@ const getPassRate = (value?: number | string) => {
 
 const goHome = () => {
   router.push('/home')
+}
+
+const goDiscuss = () => {
+  router.push('/discuss')
 }
 
 const goFavorites = () => {

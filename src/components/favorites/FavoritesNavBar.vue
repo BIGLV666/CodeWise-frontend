@@ -1,15 +1,15 @@
 <template>
   <header class="navbar">
     <div class="navbar-left">
-      <div class="logo" @click="$emit('go-home')">
-        <span class="logo-icon">⚡</span>
+      <button class="logo" type="button" @click="$emit('go-home')">
+        <span class="logo-icon">C</span>
         <span class="logo-text">CodeWise</span>
-      </div>
+      </button>
       <nav class="nav-menu">
         <a class="nav-item active" href="#" @click.prevent="$emit('go-home')">题库</a>
         <a class="nav-item" href="#">竞赛</a>
-        <a class="nav-item" href="#">讨论</a>
-        <a class="nav-item" href="#">求职</a>
+        <a class="nav-item" href="#" @click.prevent="$emit('go-discuss')">讨论</a>
+        <a class="nav-item" href="#" @click.prevent="$emit('go-review')">复习</a>
       </nav>
     </div>
     <div class="navbar-right">
@@ -23,8 +23,7 @@
         @update:model-value="$emit('update:modelValue', $event)"
       />
       <el-button :icon="Bell" circle size="small" />
-      <el-button class="plus-button" type="warning" size="small">Go Plus</el-button>
-      <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png" />
+      <el-avatar :size="32" />
     </div>
   </header>
 </template>
@@ -39,14 +38,16 @@ defineProps<{
 defineEmits<{
   (event: 'update:modelValue', value: string): void
   (event: 'go-home'): void
+  (event: 'go-discuss'): void
+  (event: 'go-review'): void
 }>()
 </script>
 
 <style scoped>
 .navbar {
-  height: 56px;
-  padding: 0 24px;
-  background: #ffffff;
+  height: 58px;
+  padding: 0 28px;
+  background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid #e8ecf1;
   display: flex;
   align-items: center;
@@ -72,6 +73,9 @@ defineEmits<{
 
 .logo {
   gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #1a1a2e;
   font-size: 18px;
   font-weight: 700;
   cursor: pointer;
@@ -80,12 +84,7 @@ defineEmits<{
 .logo-icon {
   color: #ffa116;
   font-size: 22px;
-}
-
-.logo-text {
-  background: linear-gradient(135deg, #ffa116, #ff6b35);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-weight: 800;
 }
 
 .nav-menu {
@@ -93,7 +92,7 @@ defineEmits<{
 }
 
 .nav-item {
-  padding: 6px 14px;
+  padding: 7px 15px;
   color: #4a4a4a;
   text-decoration: none;
   font-size: 14px;
@@ -102,11 +101,7 @@ defineEmits<{
   font-weight: 500;
 }
 
-.nav-item:hover {
-  background: #f0f2f5;
-  color: #1a1a2e;
-}
-
+.nav-item:hover,
 .nav-item.active {
   color: #ffa116;
   background: #fff8f0;
@@ -121,18 +116,12 @@ defineEmits<{
   background: #f5f7fa;
 }
 
-.plus-button {
-  color: #673d00;
-  font-weight: 600;
-}
-
 @media (max-width: 768px) {
   .navbar {
     padding: 0 16px;
   }
 
-  .nav-menu,
-  .plus-button {
+  .nav-menu {
     display: none;
   }
 

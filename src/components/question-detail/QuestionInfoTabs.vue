@@ -55,7 +55,11 @@
     </el-tab-pane>
 
     <el-tab-pane label="题解" name="solution">
-      <el-empty description="暂无题解，敬请期待" />
+      <QuestionSolutionPanel
+        :active="activeTab === 'solution'"
+        :question-id="questionData?.questionId || ''"
+        :question-title="questionData?.title"
+      />
     </el-tab-pane>
 
     <el-tab-pane label="提交记录" name="submissions">
@@ -190,6 +194,7 @@
 <script setup lang="ts">
 import type { TabsPaneContext } from 'element-plus'
 import type { DebugTestCase, SampleCase } from '@/types/QuestionDetail'
+import QuestionSolutionPanel from '@/components/question-detail/QuestionSolutionPanel.vue'
 
 defineProps<{
   activeTab: string

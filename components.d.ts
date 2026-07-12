@@ -51,6 +51,7 @@ declare module 'vue' {
     FavoritesSidebar: typeof import('./src/components/favorites/FavoritesSidebar.vue')['default']
     QuestionInfoTabs: typeof import('./src/components/question-detail/QuestionInfoTabs.vue')['default']
     QuestionResultContent: typeof import('./src/components/question-detail/QuestionResultContent.vue')['default']
+    QuestionSolutionPanel: typeof import('./src/components/question-detail/QuestionSolutionPanel.vue')['default']
     QuestionTopBar: typeof import('./src/components/question-detail/QuestionTopBar.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

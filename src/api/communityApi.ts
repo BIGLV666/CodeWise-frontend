@@ -14,6 +14,14 @@ export interface CommunityCommentPayload {
   rootCommentId?: string | number
   replyUserId?: string | number
   replyUserName?: string
+  type?: 'POST' | 'SOLUTION'
+}
+
+export interface SolutionPayload {
+  questionId: number
+  solutionTitle: string
+  solutionContent: string
+  tags: string[]
 }
 
 const communityApi = {
@@ -55,6 +63,7 @@ const communityApi = {
 
   listComments(params: {
     postId: string | number
+    type?: 'POST' | 'SOLUTION'
     rootCommentId?: string | number
     pageSize: number
     lastId?: string | number | null
@@ -76,6 +85,30 @@ const communityApi = {
 
   toggleCommentLike(commentId: string | number) {
     return request.put<boolean>(`/community/likes/comments/${commentId}`)
+  },
+
+  toggleSolutionLike(solutionId: string | number) {
+    return request.put<boolean>(`/community/likes/solution/${solutionId}`)
+  },
+
+  listSolutions(params: { questionId: string | number; pageSize: number; lastId?: string | number | null }) {
+    return request.get('/community/solutions', { params })
+  },
+
+  getSolution(solutionId: string | number) {
+    return request.get(`/community/solutions/${solutionId}`)
+  },
+
+  createSolution(data: SolutionPayload, requestId: string) {
+    return request.post('/community/solutions', data, { params: { requestId } })
+  },
+
+  updateSolution(solutionId: string | number, data: SolutionPayload) {
+    return request.put(`/community/solutions/${solutionId}`, data)
+  },
+
+  deleteSolution(solutionId: string | number) {
+    return request.delete(`/community/solutions/${solutionId}`)
   },
 }
 

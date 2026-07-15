@@ -23,6 +23,10 @@
           class="search-input"
           clearable
         />
+        <InboxButton />
+        <el-tooltip content="全部复习内容" placement="bottom">
+          <el-button :icon="Tickets" circle size="small" @click="historyDrawerVisible = true" />
+        </el-tooltip>
         <el-tooltip content="复习设置" placement="bottom">
           <el-button :icon="Setting" circle size="small" @click="openConfigDialog" />
         </el-tooltip>
@@ -255,6 +259,8 @@
         <el-button type="primary" :loading="savingConfig" @click="saveConfig">保存设置</el-button>
       </template>
     </el-dialog>
+
+    <ReviewHistoryDrawer v-model:visible="historyDrawerVisible" />
   </div>
 </template>
 
@@ -269,9 +275,12 @@ import {
   Refresh,
   Search,
   Setting,
+  Tickets,
   VideoPlay,
 } from '@element-plus/icons-vue'
 import reviewApi, { type ReviewConfig, type ReviewQuestionDto, type ReviewRecord } from '@/api/reviewApi'
+import ReviewHistoryDrawer from '@/components/review/ReviewHistoryDrawer.vue'
+import InboxButton from '@/components/notification/InboxButton.vue'
 
 type ReviewQuestion = ReviewQuestionDto & {
   questionId: string
@@ -333,6 +342,7 @@ const keyword = ref('')
 const loading = ref(false)
 const savingConfig = ref(false)
 const configDialogVisible = ref(false)
+const historyDrawerVisible = ref(false)
 const activeConfigPanels = ref<string[]>([])
 const errorMessage = ref('')
 const selectedPreset = ref<PresetValue>('standard')

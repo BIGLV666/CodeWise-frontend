@@ -7,6 +7,7 @@
       <span class="navbar-id">{{ questionId || '' }}</span>
     </div>
     <div class="navbar-right">
+      <InboxButton />
       <el-button type="primary" text @click="$emit('addQuestionToReview')">添加到复习</el-button>
       <el-button :icon="Star" text @click="$emit('favorite')">收藏</el-button>
       <el-button :icon="CopyDocument" text @click="$emit('copy')">复制</el-button>
@@ -17,6 +18,7 @@
 
 <script setup lang="ts">
 import { ArrowLeft, CopyDocument, Star } from '@element-plus/icons-vue'
+import InboxButton from '@/components/notification/InboxButton.vue'
 
 defineProps<{
   title?: string

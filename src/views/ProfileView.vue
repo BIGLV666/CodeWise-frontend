@@ -14,6 +14,7 @@
         </nav>
       </div>
       <div class="navbar-right">
+        <InboxButton />
         <el-button :icon="Refresh" circle size="small" :loading="loading" @click="loadProfile" />
         <el-avatar :size="34" :src="avatarUrl">{{ avatarText }}</el-avatar>
       </div>
@@ -224,6 +225,7 @@ import reviewApi from '@/api/reviewApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import type UserDto from '@/types/UserDto'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
+import InboxButton from '@/components/notification/InboxButton.vue'
 
 interface SubmitRecord {
   submitRecordId: string

@@ -23,7 +23,7 @@
           size="small"
           clearable
         />
-        <el-button :icon="Bell" circle size="small" />
+        <InboxButton />
         <button class="avatar-entry" type="button" @click="goProfile" aria-label="进入个人主页">
           <el-avatar :size="32" :src="avatarUrl">{{ avatarText }}</el-avatar>
         </button>
@@ -197,10 +197,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, ChatDotRound, EditPen, Loading, Pointer, Search, View } from '@element-plus/icons-vue'
+import { ChatDotRound, EditPen, Loading, Pointer, Search, View } from '@element-plus/icons-vue'
 import communityApi from '@/api/communityApi'
 import questionApi from '@/api/questionApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
+import InboxButton from '@/components/notification/InboxButton.vue'
 
 interface CommunityPost {
   postId: string

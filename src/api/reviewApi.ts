@@ -18,6 +18,35 @@ export interface ReviewRecord {
   createTime?: string
 }
 
+export interface ReviewRecordDetail extends ReviewRecord {
+  allQuestionIds?: Array<string | number>
+  allQuestionTitles?: Record<string, string>
+}
+
+export interface ReviewPlan {
+  reviewId: string
+  userId?: string
+  questionId: string
+  questionTitle?: string
+  weight?: 0 | 1
+  easinessFactor?: number | string
+  repetitions?: number
+  intervalDays?: number
+  lastQuality?: number
+  lastReviewTime?: string
+  nextReviewTime?: string
+  reviewCount?: number
+  status?: 0 | 1 | 2
+  createTime?: string
+  updateTime?: string
+}
+
+export interface UpdateReviewPayload {
+  status: 0 | 2
+  weight: 0 | 1
+  nextReviewData: string
+}
+
 export interface TodayReviewResponse {
   reviewRecord?: ReviewRecord
   questions?: ReviewQuestionDto[]
@@ -114,7 +143,25 @@ const reviewApi = {
 
   updateReviewConfig(data: ReviewConfigPayload) {
     return request.put<ReviewConfig>('/review/review/config', data)
-  }
+  },
+
+  getAllReviewRecords() {
+    return request.get<ReviewRecord[]>('/review/review/allrecord')
+  },
+
+  getReviewRecordDetail(reviewRecordId: string) {
+    return request.get<ReviewRecordDetail>(`/review/review/record/${reviewRecordId}`, {
+      params: { reviewRecordId },
+    })
+  },
+
+  getAllReviewPlans() {
+    return request.get<ReviewPlan[]>('/review/review/allreview')
+  },
+
+  updateReviewPlan(reviewId: string, data: UpdateReviewPayload) {
+    return request.put<ReviewPlan>(`/review/review/review/${reviewId}`, data)
+  },
 }
 
 export default reviewApi

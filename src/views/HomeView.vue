@@ -25,7 +25,7 @@
           @input="handleSearch"
           @clear="handleSearch"
         />
-        <el-button :icon="Bell" circle size="small" />
+        <InboxButton />
         <button class="avatar-entry" type="button" @click="goProfile" aria-label="进入个人主页">
           <el-avatar :size="32" :src="profileAvatarUrl">{{ profileAvatarText }}</el-avatar>
         </button>
@@ -254,7 +254,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Search, Bell, Collection, Star, Clock, Plus, Loading } from '@element-plus/icons-vue'
+import { Search, Collection, Star, Clock, Plus, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import questionApi from '@/api/questionApi'
@@ -263,6 +263,7 @@ import userApi from '@/api/userApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import { useUserStore } from '@/stores/User'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
+import InboxButton from '@/components/notification/InboxButton.vue'
 
 interface Question {
   questionId: number

@@ -28,6 +28,11 @@ const router = createRouter({
       component: () => import('@/views/ReviewView.vue'),
     },
     {
+      path: '/inbox',
+      name: 'inbox',
+      component: () => import('@/views/InboxView.vue'),
+    },
+    {
       path: '/discuss',
       name: 'discuss',
       component: () => import('@/views/DiscussionView.vue'),

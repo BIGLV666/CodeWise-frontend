@@ -22,14 +22,15 @@
         clearable
         @update:model-value="$emit('update:modelValue', $event)"
       />
-      <el-button :icon="Bell" circle size="small" />
+      <InboxButton />
       <el-avatar :size="32" />
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
-import { Bell, Search } from '@element-plus/icons-vue'
+import { Search } from '@element-plus/icons-vue'
+import InboxButton from '@/components/notification/InboxButton.vue'
 
 defineProps<{
   modelValue: string

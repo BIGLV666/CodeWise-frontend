@@ -11,7 +11,7 @@
                 circle
                 size="small"
                 aria-label="打开收件箱"
-                @click="router.push('/inbox')"
+                @click="navigateTopLevel(router, '/inbox')"
             />
         </el-tooltip>
     </el-badge>
@@ -22,6 +22,7 @@ import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Bell } from '@element-plus/icons-vue';
 import { useNotificationStore } from '@/stores/notification';
+import { navigateTopLevel } from '@/utils/navigation';
 
 const router = useRouter();
 const notificationStore = useNotificationStore();

@@ -2,24 +2,24 @@
   <div class="detail-page">
     <header class="navbar">
       <div class="nav-left">
-        <button class="logo" type="button" @click="router.push('/home')">
+        <button class="logo" type="button" @click="navigateTopLevel(router, '/home')">
           <span class="logo-mark">C</span><span>CodeWise</span>
         </button>
         <nav>
-          <button type="button" @click="router.push('/home')">题库</button>
+          <button type="button" @click="navigateTopLevel(router, '/home')">题库</button>
           <button type="button">竞赛</button>
-          <button class="active" type="button" @click="router.push('/discuss')">讨论</button>
-          <button type="button" @click="router.push('/review')">复习</button>
+          <button class="active" type="button" @click="navigateTopLevel(router, '/discuss')">讨论</button>
+          <button type="button" @click="navigateTopLevel(router, '/review')">复习</button>
         </nav>
       </div>
-      <button class="avatar-entry" type="button" aria-label="进入个人主页" @click="router.push('/profile')">
+      <button class="avatar-entry" type="button" aria-label="进入个人主页" @click="navigateTopLevel(router, '/profile')">
         <el-avatar :size="32" :src="avatarUrl">{{ avatarText }}</el-avatar>
       </button>
     </header>
 
     <main class="page-shell">
       <section class="main-column">
-        <button class="back-link" type="button" @click="router.push('/discuss')">
+        <button class="back-link" type="button" @click="navigateTopLevel(router, '/discuss')">
           <el-icon><ArrowLeft /></el-icon><span>返回讨论</span>
         </button>
 
@@ -27,7 +27,7 @@
           <el-icon class="is-loading"><Loading /></el-icon><span>加载帖子中...</span>
         </div>
         <el-result v-else-if="!post" icon="warning" title="帖子不存在" sub-title="内容可能已被删除或暂时无法访问">
-          <template #extra><el-button @click="router.push('/discuss')">返回讨论</el-button></template>
+          <template #extra><el-button @click="navigateTopLevel(router, '/discuss')">返回讨论</el-button></template>
         </el-result>
 
         <template v-else>
@@ -168,6 +168,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import communityApi from '@/api/communityApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import { renderMarkdown } from '@/utils/markdown'
+import { navigateTopLevel } from '@/utils/navigation'
 import type UserDto from '@/types/UserDto'
 
 interface CommunityPost {

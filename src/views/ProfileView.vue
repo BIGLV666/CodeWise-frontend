@@ -226,6 +226,7 @@ import { normalizeAvatarUrl } from '@/utils/avatar'
 import type UserDto from '@/types/UserDto'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
 import InboxButton from '@/components/notification/InboxButton.vue'
+import { navigateTopLevel } from '@/utils/navigation'
 
 interface SubmitRecord {
   submitRecordId: string
@@ -395,10 +396,10 @@ const openRecordQuestion = (record: SubmitRecord) => {
   router.push({ path: '/questiondetailview', query: { questionId: record.questionId, from: '/profile' } })
 }
 
-const goHome = () => router.push('/home')
-const goReview = () => router.push('/review')
-const goDiscuss = () => router.push('/discuss')
-const goFavorites = () => router.push('/favorites')
+const goHome = () => navigateTopLevel(router, '/home')
+const goReview = () => navigateTopLevel(router, '/review')
+const goDiscuss = () => navigateTopLevel(router, '/discuss')
+const goFavorites = () => navigateTopLevel(router, '/favorites')
 const handleProfileCommand = (command: string) => {
   if (command === 'avatar') {
     if (avatarUploading.value) return

@@ -153,7 +153,7 @@ const handleLogin = async () => {
     const userStore = useUserStore()
     userStore.setLoginData({ token, userDto })
     ElMessage.success('登录成功')
-    router.push('/home')
+    router.replace('/home')
   } catch (error) {
     console.error('登录失败:', error)
     ElMessage.error('登录失败，请检查账号密码或网络')

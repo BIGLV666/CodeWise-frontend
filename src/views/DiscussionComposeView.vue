@@ -2,20 +2,20 @@
   <div class="compose-page">
     <header class="navbar">
       <div class="nav-left">
-        <button class="logo" type="button" @click="router.push('/home')">
+        <button class="logo" type="button" @click="navigateTopLevel(router, '/home')">
           <span class="logo-mark">C</span>
           <span>CodeWise</span>
         </button>
         <nav>
-          <button type="button" @click="router.push('/home')">题库</button>
+          <button type="button" @click="navigateTopLevel(router, '/home')">题库</button>
           <button type="button">竞赛</button>
-          <button class="active" type="button" @click="router.push('/discuss')">讨论</button>
-          <button type="button" @click="router.push('/review')">复习</button>
+          <button class="active" type="button" @click="navigateTopLevel(router, '/discuss')">讨论</button>
+          <button type="button" @click="navigateTopLevel(router, '/review')">复习</button>
         </nav>
       </div>
 
       <div class="nav-right">
-        <button class="avatar-entry" type="button" aria-label="进入个人主页" @click="router.push('/profile')">
+        <button class="avatar-entry" type="button" aria-label="进入个人主页" @click="navigateTopLevel(router, '/profile')">
           <el-avatar :size="32" :src="avatarUrl">{{ avatarText }}</el-avatar>
         </button>
       </div>
@@ -98,6 +98,7 @@ import { ElMessage } from 'element-plus'
 import communityApi from '@/api/communityApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import { renderMarkdown } from '@/utils/markdown'
+import { navigateTopLevel } from '@/utils/navigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -200,7 +201,7 @@ async function submitPost() {
     )
 
     ElMessage.success('帖子已发布')
-    await router.push('/discuss')
+    await navigateTopLevel(router, '/discuss')
   } catch (error) {
     console.error('发布帖子失败:', error)
     ElMessage.error('发布失败，请稍后再试')
@@ -240,7 +241,7 @@ function cancelCompose() {
     return
   }
   if (window.history.length > 1) router.back()
-  else router.push('/discuss')
+  else navigateTopLevel(router, '/discuss')
 }
 
 onMounted(loadEditingPost)

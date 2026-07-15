@@ -202,6 +202,7 @@ import communityApi from '@/api/communityApi'
 import questionApi from '@/api/questionApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import InboxButton from '@/components/notification/InboxButton.vue'
+import { navigateTopLevel } from '@/utils/navigation'
 
 interface CommunityPost {
   postId: string
@@ -532,9 +533,9 @@ const formatDate = (date?: string) => {
   return parsed.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-const goHome = () => router.push('/home')
-const goReview = () => router.push('/review')
-const goProfile = () => router.push('/profile')
+const goHome = () => navigateTopLevel(router, '/home')
+const goReview = () => navigateTopLevel(router, '/review')
+const goProfile = () => navigateTopLevel(router, '/profile')
 
 watch(keyword, () => {
   selectedTag.value = ''

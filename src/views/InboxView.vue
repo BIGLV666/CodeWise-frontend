@@ -1,13 +1,13 @@
 <template>
     <div class="inbox-page">
         <header class="navbar">
-            <button class="logo" type="button" @click="router.push('/home')">
+            <button class="logo" type="button" @click="navigateTopLevel(router, '/home')">
                 <span>C</span>CodeWise
             </button>
             <nav>
-                <button type="button" @click="router.push('/home')">题库</button
-                ><button type="button" @click="router.push('/discuss')">讨论</button
-                ><button type="button" @click="router.push('/review')">复习</button
+                <button type="button" @click="navigateTopLevel(router, '/home')">题库</button
+                ><button type="button" @click="navigateTopLevel(router, '/discuss')">讨论</button
+                ><button type="button" @click="navigateTopLevel(router, '/review')">复习</button
                 ><button class="active" type="button">收件箱</button>
             </nav>
             <el-button :icon="Refresh" circle size="small" :loading="loading" @click="reload" />
@@ -153,12 +153,6 @@
                         />
                     </div>
                     <div class="detail-content">{{ detail.content || '暂无详细内容' }}</div>
-                    <dl v-if="extraEntries.length" class="extra-data">
-                        <template v-for="entry in extraEntries" :key="entry[0]"
-                            ><dt>{{ extraLabel(entry[0]) }}</dt>
-                            <dd>{{ entry[1] }}</dd></template
-                        >
-                    </dl>
                     <div class="detail-actions">
                         <el-button v-if="detail.businessId" type="primary" @click="openBusiness"
                             >查看相关内容</el-button
@@ -181,6 +175,7 @@ import notificationApi, {
     type NotificationType
 } from '@/api/notificationApi';
 import { useNotificationStore } from '@/stores/notification';
+import { navigateTopLevel } from '@/utils/navigation';
 
 const router = useRouter();
 const notificationStore = useNotificationStore();
@@ -205,11 +200,6 @@ const reviewNotifications = computed(() =>
 );
 const likeNotifications = computed(() =>
     notifications.value.filter((item) => item.type === 'LIKE')
-);
-const extraEntries = computed(() =>
-    Object.entries(detail.value?.extraData || {}).filter(
-        ([, value]) => value != null && typeof value !== 'object'
-    )
 );
 
 const unwrap = <T,>(response: any, fallback: T): T => (response?.data ?? response ?? fallback) as T;
@@ -333,10 +323,6 @@ function openBusiness() {
 const formatDate = (value?: string) =>
     value ? new Date(value).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) : '';
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString('zh-CN') : '');
-const extraLabel = (key: string) =>
-    ({ total: '待复习数量', reminderType: '提醒类型', nickName: '用户昵称', userName: '用户名' })[
-        key
-    ] || key;
 
 onMounted(reload);
 </script>
@@ -550,21 +536,6 @@ onMounted(reload);
     font-size: 16px;
     line-height: 1.9;
     white-space: pre-wrap;
-}
-.extra-data {
-    padding: 14px 16px;
-    border: 1px solid #e8eaed;
-    border-radius: 6px;
-    display: grid;
-    grid-template-columns: 120px 1fr;
-    gap: 9px 16px;
-}
-.extra-data dt {
-    color: #8a8f98;
-    font-size: 12px;
-}
-.extra-data dd {
-    margin: 0;
 }
 .detail-actions {
     margin-top: 22px;

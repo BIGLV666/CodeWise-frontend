@@ -463,7 +463,7 @@ const handleResetPassword = async () => {
 			if (res.code === 200) {
 				ElMessage.success('密码修改成功，请登录')
 				handleResetDialogClose()
-				router.push('/login')
+				router.replace('/login')
 			} else {
 				ElMessage.error(res.message || '密码修改失败')
 			}
@@ -477,7 +477,7 @@ const handleResetPassword = async () => {
 
 // ====== 跳转登录 ======
 const goToLogin = () => {
-	router.push('/login')
+	router.replace('/login')
 }
 </script>
 

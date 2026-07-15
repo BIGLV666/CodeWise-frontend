@@ -60,7 +60,7 @@ request.interceptors.response.use(
           message = '未授权，请登录'
           const userStore = useUserStore()
           userStore.logout()
-          router.push('/login')
+          router.replace('/login')
           break
         case 403:
           message = '拒绝访问'

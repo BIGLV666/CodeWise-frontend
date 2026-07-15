@@ -78,6 +78,7 @@ import FavoritesProgressCard from '@/components/favorites/FavoritesProgressCard.
 import FavoritesSidebar from '@/components/favorites/FavoritesSidebar.vue'
 import reviewApi from '@/api/reviewApi'
 import type { FavoriteCollection, FavoriteDifficulty, FavoriteProblem, FavoriteQuestionDto } from '@/types/FavoriteProblem'
+import { navigateTopLevel } from '@/utils/navigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -362,15 +363,15 @@ const startPractice = () => {
 }
 
 const goHome = () => {
-  router.push('/home')
+  navigateTopLevel(router, '/home')
 }
 
 const goDiscuss = () => {
-  router.push('/discuss')
+  navigateTopLevel(router, '/discuss')
 }
 
 const goReview = () => {
-  router.push('/review')
+  navigateTopLevel(router, '/review')
 }
 
 const goToDetail = (row: FavoriteProblem) => {

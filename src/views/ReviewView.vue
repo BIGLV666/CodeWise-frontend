@@ -281,6 +281,7 @@ import {
 import reviewApi, { type ReviewConfig, type ReviewQuestionDto, type ReviewRecord } from '@/api/reviewApi'
 import ReviewHistoryDrawer from '@/components/review/ReviewHistoryDrawer.vue'
 import InboxButton from '@/components/notification/InboxButton.vue'
+import { navigateTopLevel } from '@/utils/navigation'
 
 type ReviewQuestion = ReviewQuestionDto & {
   questionId: string
@@ -517,15 +518,15 @@ const getPassRate = (value?: number | string) => {
 }
 
 const goHome = () => {
-  router.push('/home')
+  navigateTopLevel(router, '/home')
 }
 
 const goDiscuss = () => {
-  router.push('/discuss')
+  navigateTopLevel(router, '/discuss')
 }
 
 const goFavorites = () => {
-  router.push('/favorites')
+  navigateTopLevel(router, '/favorites')
 }
 
 const openQuestion = (task: ReviewQuestion) => {

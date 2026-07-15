@@ -264,6 +264,7 @@ import { normalizeAvatarUrl } from '@/utils/avatar'
 import { useUserStore } from '@/stores/User'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
 import InboxButton from '@/components/notification/InboxButton.vue'
+import { navigateTopLevel } from '@/utils/navigation'
 
 interface Question {
   questionId: number
@@ -661,9 +662,9 @@ const openFavorites = (favoriteId?: string) => {
   })
 }
 
-const goReview = () => router.push('/review')
-const goDiscuss = () => router.push('/discuss')
-const goProfile = () => router.push('/profile')
+const goReview = () => navigateTopLevel(router, '/review')
+const goDiscuss = () => navigateTopLevel(router, '/discuss')
+const goProfile = () => navigateTopLevel(router, '/profile')
 
 onMounted(async () => {
   await Promise.all([loadQuestionTotal(), loadQuestions(true), loadHomeFavorites(), loadUserProfile(), loadSubmitStats()])

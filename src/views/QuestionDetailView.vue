@@ -635,13 +635,18 @@ const goBack = () => {
   const from = Array.isArray(route.query.from) ? route.query.from[0] : route.query.from
   if (from === '/favorites') {
     const favoriteId = Array.isArray(route.query.favoriteId) ? route.query.favoriteId[0] : route.query.favoriteId
-    router.push({
+    router.replace({
       path: '/favorites',
       query: favoriteId ? { favoriteId } : undefined,
     })
     return
   }
-  router.back()
+  if (from === '/review' || from === '/profile') {
+    router.replace(from)
+    return
+  }
+  if (window.history.state?.back) router.back()
+  else router.replace('/home')
 }
 
 // ====== 复制文本 ======

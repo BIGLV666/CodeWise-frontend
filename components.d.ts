@@ -53,6 +53,7 @@ declare module 'vue' {
     FavoritesProgressCard: typeof import('./src/components/favorites/FavoritesProgressCard.vue')['default']
     FavoritesSidebar: typeof import('./src/components/favorites/FavoritesSidebar.vue')['default']
     InboxButton: typeof import('./src/components/notification/InboxButton.vue')['default']
+    NotificationRuntime: typeof import('./src/components/notification/NotificationRuntime.vue')['default']
     QuestionInfoTabs: typeof import('./src/components/question-detail/QuestionInfoTabs.vue')['default']
     QuestionResultContent: typeof import('./src/components/question-detail/QuestionResultContent.vue')['default']
     QuestionSolutionPanel: typeof import('./src/components/question-detail/QuestionSolutionPanel.vue')['default']

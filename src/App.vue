@@ -1,4 +1,5 @@
 <template>
+  <NotificationRuntime />
   <router-view v-slot="{ Component, route }">
     <transition name="page" mode="out-in">
       <component :is="Component" :key="route.fullPath" />
@@ -7,6 +8,7 @@
 </template>
 
 <script setup lang="ts">
+import NotificationRuntime from '@/components/notification/NotificationRuntime.vue'
 </script>
 
 <style>

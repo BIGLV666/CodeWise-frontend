@@ -569,29 +569,17 @@ const parsedTestData = computed<ParsedTestData>(() => {
 // ====== 调试相关 ======
 const hasUserModified = ref(false)  // ✅ 新增：标记用户是否手动修改过用例
 // ====== WebSocket ======
-// QuestionDetailView.vue - setupWebSocket
-const setupWebSocket = async () => {
-  try {
-    const token: any = localStorage.getItem('token')
-    const userId: any = localStorage.getItem('userId')
-    if (!token || !userId) {
-      console.warn('⚠️ 未登录，跳过 WebSocket 连接')
-      return
-    }
+let stopJudgeListener: (() => void) | undefined
+let stopDebugJudgeListener: (() => void) | undefined
 
-    // ✅ 使用 ws:// 协议
-    const wsUrl = `ws://localhost:8082/websocket?token=${token}`
-    console.log('📡 准备连接 WebSocket:', wsUrl)
+const setupJudgeSubscriptions = () => {
+  const userId = localStorage.getItem('userId')
+  if (!userId) return
 
-    // ✅ 等待连接完成
-    await websocketService.connect(wsUrl, token)
-    console.log('✅ WebSocket 已连接')
+  websocketService.subscribe('judge-result', `/queue/judge-result-${userId}`)
+  websocketService.subscribe('debug-judge-result', `/queue/debug-judge-result-${userId}`)
 
-    // ✅ 订阅判题结果
-    websocketService.clearListeners('judge-result')
-    websocketService.clearListeners('debug-judge-result')
-
-    websocketService.on('judge-result', (data: any) => {
+  stopJudgeListener = websocketService.on('judge-result', (data: any) => {
       console.log('📩 收到判题结果:', data)
       judgeResult.value = data.result
       judgeProgress.value = 100
@@ -603,10 +591,9 @@ const setupWebSocket = async () => {
         ElMessage.error(`❌ ${statusMap[data.submitStatus]?.text || data.submitStatus}`)
       }
       submitting.value = false
-    })
+  })
 
-    // ✅ 订阅调试结果
-    websocketService.on('debug-judge-result', (resultsBodey: any) => {
+  stopDebugJudgeListener = websocketService.on('debug-judge-result', (resultsBodey: any) => {
       console.log('📩 收到调试结果:', resultsBodey)
       const results = resultsBodey.result || []
 
@@ -622,17 +609,7 @@ const setupWebSocket = async () => {
         selectedTestCaseIndex.value = firstResultIndex
       }
       debugging.value = false
-
-    })
-
-  } catch (error) {
-    console.error('❌ WebSocket 连接失败:', error)
-    // 3秒后重试
-    setTimeout(() => {
-      console.log('🔄 重试 WebSocket 连接...')
-      setupWebSocket()
-    }, 3000)
-  }
+  })
 }
 
 const handleFormat = () => {
@@ -1031,8 +1008,7 @@ const handleDebug = async () => {
 // ====== 生命周期 ======
 onMounted(async () => {
   await loadQuestion()
-  // WebSocket 初始化不阻塞页面
-  setupWebSocket().catch(e => console.error('WebSocket 初始化失败:', e))
+  setupJudgeSubscriptions()
   nextTick(() => { calculateWidths(); initEditor() })
   window.addEventListener('resize', () => { calculateWidths(); nextTick(() => { editor?.layout() }) })
 })
@@ -1044,9 +1020,10 @@ onBeforeUnmount(() => {
     editor.dispose()
     editor = null
   }
-  websocketService.disconnect()
-  websocketService.clearListeners('judge-result')
-  websocketService.clearListeners('debug-judge-result')
+  stopJudgeListener?.()
+  stopDebugJudgeListener?.()
+  websocketService.unsubscribe('judge-result')
+  websocketService.unsubscribe('debug-judge-result')
   clearTimeout(formatTimeout)
   clearTimeout(saveTimeout)
 })

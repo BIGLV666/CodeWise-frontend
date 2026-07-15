@@ -1,64 +1,73 @@
-// src/utils/websocket.ts
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs'
 
 type Listener = (data: any) => void
 
+interface RequestedSubscription {
+  destination: string
+}
+
 class WebSocketService {
   private client: Client | null = null
-  private listeners: Map<string, Set<Listener>> = new Map()
-  private subscriptions: Map<string, StompSubscription> = new Map()
+  private connectionKey = ''
+  private listeners = new Map<string, Set<Listener>>()
+  private requestedSubscriptions = new Map<string, RequestedSubscription>()
+  private subscriptions = new Map<string, StompSubscription>()
 
-  connect(url: string, token: string) {
-    const userId = localStorage.getItem('userId')
-    const judgeQueue = `/queue/judge-result-${userId}`
-    const debugQueue = `/queue/debug-judge-result-${userId}`
+  async connect(url: string, token: string) {
+    const connectionKey = `${url}|${token}`
+    if (this.client?.active && this.connectionKey === connectionKey) return
 
-    if (this.client?.active) {
-      return
-    }
+    await this.disconnect(false)
 
-    console.log('WebSocket connecting...')
-    console.log('Subscribe judge queue:', judgeQueue)
-    console.log('Subscribe debug queue:', debugQueue)
-
-    this.client = new Client({
+    const client = new Client({
       brokerURL: url,
       connectHeaders: {
         Authorization: `Bearer ${token}`,
       },
-      debug: (str) => console.log('STOMP:', str),
+      debug: import.meta.env.DEV ? (message) => console.debug('STOMP:', message) : () => undefined,
       reconnectDelay: 3000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
     })
 
-    this.client.onConnect = () => {
-      console.log('WebSocket connected')
-      this.subscribeOnce('judge-result', judgeQueue, (message) => {
-        console.log('Received judge result:', message.body)
-        this.parseAndEmit('judge-result', message)
-      })
-      this.subscribeOnce('debug-judge-result', debugQueue, (message) => {
-        console.log('Received debug result:', message.body)
-        this.parseAndEmit('debug-judge-result', message)
-      })
+    this.client = client
+    this.connectionKey = connectionKey
+
+    client.onConnect = () => {
+      if (this.client !== client) return
+      this.requestedSubscriptions.forEach((_, event) => this.activateSubscription(event))
     }
 
-    this.client.onStompError = (frame) => {
-      console.error('STOMP error:', frame)
+    client.onStompError = (frame) => {
+      console.error('STOMP 连接错误:', frame.headers.message || frame.body)
     }
 
-    this.client.onWebSocketError = (error) => {
-      console.error('WebSocket error:', error)
+    client.onWebSocketError = (error) => {
+      console.error('WebSocket 连接错误:', error)
     }
 
-    this.client.activate()
+    client.onWebSocketClose = () => {
+      if (this.client === client) this.subscriptions.clear()
+    }
+
+    client.activate()
+  }
+
+  subscribe(event: string, destination: string) {
+    const current = this.requestedSubscriptions.get(event)
+    if (current?.destination === destination && this.subscriptions.has(event)) return
+
+    this.requestedSubscriptions.set(event, { destination })
+    if (this.client?.connected) this.activateSubscription(event)
+  }
+
+  unsubscribe(event: string) {
+    this.requestedSubscriptions.delete(event)
+    this.unsubscribeActive(event)
   }
 
   on(event: string, callback: Listener) {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, new Set())
-    }
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set())
     this.listeners.get(event)!.add(callback)
     return () => this.off(event, callback)
   }
@@ -75,11 +84,41 @@ class WebSocketService {
     this.listeners.clear()
   }
 
-  private subscribeOnce(key: string, destination: string, callback: (message: IMessage) => void) {
-    this.subscriptions.get(key)?.unsubscribe()
-    const subscription = this.client?.subscribe(destination, callback)
-    if (subscription) {
-      this.subscriptions.set(key, subscription)
+  async disconnect(clearRequestedSubscriptions = true) {
+    this.subscriptions.forEach((_, event) => this.unsubscribeActive(event))
+    this.subscriptions.clear()
+    if (clearRequestedSubscriptions) this.requestedSubscriptions.clear()
+
+    const client = this.client
+    this.client = null
+    this.connectionKey = ''
+    if (client?.active) await client.deactivate()
+  }
+
+  isConnected() {
+    return Boolean(this.client?.connected)
+  }
+
+  private activateSubscription(event: string) {
+    const requested = this.requestedSubscriptions.get(event)
+    if (!requested || !this.client?.connected) return
+
+    this.unsubscribeActive(event)
+    const subscription = this.client.subscribe(requested.destination, (message) => {
+      this.parseAndEmit(event, message)
+    })
+    this.subscriptions.set(event, subscription)
+  }
+
+  private unsubscribeActive(event: string) {
+    const subscription = this.subscriptions.get(event)
+    this.subscriptions.delete(event)
+    if (!subscription) return
+
+    try {
+      subscription.unsubscribe()
+    } catch {
+      // A closed STOMP connection has already discarded its server subscription.
     }
   }
 
@@ -87,31 +126,12 @@ class WebSocketService {
     try {
       this.emit(event, JSON.parse(message.body))
     } catch (error) {
-      console.error('Failed to parse websocket message:', error)
+      console.error(`WebSocket 消息解析失败 (${event}):`, error)
     }
   }
 
   private emit(event: string, data: any) {
-    console.log('emit:', event, data)
-    const callbacks = this.listeners.get(event)
-    if (!callbacks?.size) {
-      console.warn('No listener for event:', event)
-      return
-    }
-    callbacks.forEach((callback) => callback(data))
-  }
-
-  disconnect() {
-    this.subscriptions.forEach((subscription) => subscription.unsubscribe())
-    this.subscriptions.clear()
-    if (this.client) {
-      this.client.deactivate()
-      this.client = null
-    }
-  }
-
-  isConnected(): boolean {
-    return this.client?.connected || false
+    this.listeners.get(event)?.forEach((callback) => callback(data))
   }
 }
 

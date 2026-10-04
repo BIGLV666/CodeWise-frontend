@@ -1,8 +1,15 @@
 import request from "./request";
+import type UserDto from '@/types/UserDto'
+
+/** 登录接口返回的业务数据（位于 Result.data 内）。 */
+export interface LoginResult {
+   token: string
+   user: UserDto
+}
 
 const userApi={
      login(username:string,password:string){
-        return request.post('/user/login',null,{params:{username,password}});
+        return request.post<LoginResult>('/user/login',null,{params:{username,password}});
      },
      emailRegister(email:string,password:string,username:string){
       return request.post('/user/emailregister',null,{params:{email,password,username}});
@@ -10,14 +17,44 @@ const userApi={
      register(number:string,code:string){
       return request.post('/user/register',null,{params:{number,code}});
      },
-     updataPasswordForEmail(email:string,password:string){
-      return request.post('/user/updatepasswordforemail',null,{params:{email,password}})
-   },
-     updatefromcode(number:string,code:string){
-        return request.post('/user/updatefromcode',null,{params:{number,code}})
+     /** 发送登录验证码（仅对已注册邮箱有效）。 */
+     getEmailCode(email:string){
+      return request.post('/user/getemailcode',null,{params:{email}});
      },
+     /** 验证码方式的邮箱登录。 */
+     emailLoginForCode(email:string,code:string){
+      return request.post<LoginResult>('/user/emailloginforcode',null,{params:{email,code}});
+     },
+     /**
+      * 找回密码第一步：仅发送验证码。
+      * 新密码在第二步随验证码一起提交，避免未验证身份就暂存密码。
+      */
+     updataPasswordForEmail(email:string){
+      return request.post('/user/updatepasswordforemail',null,{params:{email}})
+   },
+     /** 找回密码第二步：邮箱 + 验证码 + 新密码。 */
+     updatefromcode(number:string,code:string,password:string){
+        return request.post('/user/updatefromcode',null,{params:{number,code,password}})
+     },
+     /** 获取当前登录用户信息（后端从令牌推导身份，不接受入参）。 */
+     getCurrentUser() {
+        return request.get<UserDto>('/user/getuserbyid')
+     },
+     /** 查询指定用户公开信息，供作者信息/角色展示使用。 */
      getUserById(id: string) {
-        return request.get('/user/getuserbyid', { params: { id } })
+        return request.get<UserDto>(`/user/info/${encodeURIComponent(id)}`)
+     },
+     /** 管理员按 ID 查询任意用户。 */
+     updatePassword(oldPassword: string, newPassword: string) {
+        return request.post('/user/updatepassword', null, { params: { oldPassword, newPassword } })
+     },
+     /** 冻结当前账号（需密码验证，冻结期间无法登录）。 */
+     freezeAccount(banReason: string, password: string) {
+        return request.post('/user/freeze', null, { params: { banReason, password } })
+     },
+     /** 注销当前账号（后端软删除，status 置 2）。 */
+     deleteAccount() {
+        return request.post('/user/delete')
      },
      updateNickName(nickName: string) {
         return request.put('/user/nickname', null, { params: { nickName } })

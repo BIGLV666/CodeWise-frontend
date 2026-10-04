@@ -1,0 +1,58 @@
+/**
+ * CodeWise 设计令牌。
+ *
+ * 全站唯一的颜色/字体/圆角/阴影来源。组件样式一律引用这里的变量，
+ * 禁止再散落硬编码 hex —— 历史上 50+ 个各自为政的色值就是"丑"的根因。
+ * 调色板收敛自重构前各页面实际使用的色值，保持视觉延续性。
+ */
+:root {
+  /* ---- 品牌色 ---- */
+  --cw-brand: #ffa116;
+  --cw-brand-dark: #d98200;
+  --cw-brand-deep: #9b650f;
+  --cw-brand-soft: #fff8f0;
+  --cw-brand-border: #ffe3b3;
+
+  /* AI 助手点缀色（AI 面板/建议相关专用） */
+  --cw-accent-ai: #7257e8;
+  --cw-accent-ai-soft: #f0edff;
+
+  /* ---- 文本 ---- */
+  --cw-text-1: #1a1a2e;
+  --cw-text-2: #4a4a4a;
+  --cw-text-3: #8c8c8c;
+  --cw-text-faint: #c0c4cc;
+
+  /* ---- 背景 ---- */
+  --cw-bg-page: #f5f7fa;
+  --cw-bg-subtle: #edf0f3;
+  --cw-bg-card: #ffffff;
+
+  /* ---- 边框 ---- */
+  --cw-border: #e8ecf1;
+  --cw-border-strong: #dcdfe6;
+
+  /* ---- 语义色 ---- */
+  --cw-success: #67c23a;
+  --cw-success-soft: #e7f5e0;
+  --cw-warning: #e6a23c;
+  --cw-danger: #f56c6c;
+  --cw-info: #909399;
+
+  /* ---- 字体 ---- */
+  --cw-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --cw-font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+
+  /* ---- 圆角 ---- */
+  --cw-radius-sm: 6px;
+  --cw-radius: 8px;
+  --cw-radius-lg: 12px;
+
+  /* ---- 阴影 ---- */
+  --cw-shadow-card: 0 1px 3px rgba(26, 26, 46, 0.05), 0 4px 14px rgba(26, 26, 46, 0.04);
+  --cw-shadow-pop: 0 8px 30px rgba(26, 26, 46, 0.12);
+
+  /* ---- 布局 ---- */
+  --cw-navbar-height: 58px;
+}

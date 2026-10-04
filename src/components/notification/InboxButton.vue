@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Bell } from '@element-plus/icons-vue';
 import { useNotificationStore } from '@/stores/notification';
@@ -29,24 +29,6 @@ const notificationStore = useNotificationStore();
 const badgeValue = computed(() =>
     notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount
 );
-let refreshTimer: number | undefined;
-
-const refreshWhenVisible = () => {
-    if (document.visibilityState === 'visible') notificationStore.refreshUnreadCount();
-};
-
-onMounted(() => {
-    notificationStore.refreshUnreadCount();
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    refreshTimer = window.setInterval(refreshWhenVisible, 30000);
-});
-
-onBeforeUnmount(() => {
-    window.removeEventListener('focus', refreshWhenVisible);
-    document.removeEventListener('visibilitychange', refreshWhenVisible);
-    if (refreshTimer) window.clearInterval(refreshTimer);
-});
 </script>
 
 <style scoped>
@@ -56,7 +38,7 @@ onBeforeUnmount(() => {
 }
 .inbox-badge :deep(.el-badge__content) {
     border: 2px solid #fff;
-    background: #e5484d;
+    background: var(--cw-danger);
     font-size: 10px;
 }
 </style>

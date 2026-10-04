@@ -292,10 +292,12 @@ const props = defineProps<{
     active: boolean;
     questionId: string | number;
     questionTitle?: string;
+    initialSolutionId?: string;
 }>();
 const panelRef = ref<HTMLElement>();
 const mode = ref<'list' | 'detail' | 'editor'>('list');
 const activatedOnce = ref(false);
+const openedInitialSolutionId = ref('');
 const solutions = ref<SolutionSummary[]>([]);
 const listLoading = ref(false);
 const hasNext = ref(false);
@@ -436,7 +438,7 @@ async function saveSolution() {
         };
         if (editingId.value) {
             await communityApi.updateSolution(editingId.value, payload);
-            ElMessage.success('题解已修改');
+            ElMessage.success('题解修改已提交审核，审核通过后会重新公开');
             await openDetail(editingId.value);
         } else {
             const requestResponse: any = await communityApi.getRequestId();
@@ -447,7 +449,7 @@ async function saveSolution() {
                 await communityApi.createSolution(payload, requestId),
                 null
             );
-            ElMessage.success('题解已发布');
+            ElMessage.success('题解已提交审核，审核通过后会公开展示');
             solutions.value = [];
             nextCursor.value = null;
             hasNext.value = false;
@@ -613,9 +615,15 @@ const formatDate = (date?: string) => {
 };
 
 watch(
-    () => [props.active, props.questionId] as const,
-    ([active, questionId]) => {
-        if (active && questionId && !activatedOnce.value) {
+    () => [props.active, props.questionId, props.initialSolutionId] as const,
+    ([active, questionId, initialSolutionId]) => {
+        if (!active || !questionId) return;
+        if (initialSolutionId && openedInitialSolutionId.value !== initialSolutionId) {
+            openedInitialSolutionId.value = initialSolutionId;
+            openDetail(initialSolutionId);
+            return;
+        }
+        if (!activatedOnce.value) {
             activatedOnce.value = true;
             loadSolutions();
         }
@@ -629,7 +637,7 @@ watch(
     height: 100%;
     overflow-y: auto;
     padding: 2px 4px 32px 0;
-    color: #262626;
+    color: var(--cw-text-1);
     scrollbar-width: thin;
 }
 .solution-toolbar,
@@ -644,7 +652,7 @@ watch(
     gap: 12px;
     padding: 4px 0 14px;
     background: #fff;
-    border-bottom: 1px solid #edf0f3;
+    border-bottom: 1px solid var(--cw-bg-subtle);
 }
 .solution-toolbar h2 {
     margin: 0;
@@ -652,7 +660,7 @@ watch(
 }
 .solution-toolbar p {
     margin: 4px 0 0;
-    color: #8a8f98;
+    color: var(--cw-text-3);
     font-size: 12px;
 }
 .solution-list {
@@ -663,7 +671,7 @@ watch(
     display: flex;
     gap: 12px;
     padding: 18px 4px;
-    border-bottom: 1px solid #edf0f3;
+    border-bottom: 1px solid var(--cw-bg-subtle);
     cursor: pointer;
     transition:
         background 0.16s ease,
@@ -671,7 +679,7 @@ watch(
 }
 .solution-row:hover,
 .solution-row:focus-visible {
-    background: #fafafa;
+    background: var(--cw-bg-page);
     transform: translateY(-1px);
     outline: none;
 }
@@ -691,7 +699,7 @@ watch(
 }
 .solution-author span,
 .comment-meta span {
-    color: #9ca3af;
+    color: var(--cw-text-3);
     font-size: 11px;
 }
 .solution-row h3 {
@@ -706,7 +714,7 @@ watch(
 }
 .tag-row :deep(.el-tag) {
     border-color: #e4e7eb;
-    background: #f5f6f7;
+    background: var(--cw-bg-page);
     color: #60656f;
 }
 .solution-metrics,
@@ -715,7 +723,7 @@ watch(
     align-items: center;
     gap: 18px;
     margin-top: 12px;
-    color: #8a8f98;
+    color: var(--cw-text-3);
     font-size: 12px;
 }
 .solution-metrics span,
@@ -736,7 +744,7 @@ watch(
 }
 .solution-like:hover,
 .solution-like.liked {
-    color: #16a34a;
+    color: var(--cw-success);
 }
 .solution-like:disabled {
     cursor: wait;
@@ -758,10 +766,10 @@ watch(
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    color: #6b7280;
+    color: var(--cw-text-3);
 }
 .back-button:hover {
-    color: #d98200;
+    color: var(--cw-brand-dark);
 }
 .owner-actions {
     display: flex;
@@ -782,14 +790,14 @@ watch(
     gap: 3px;
 }
 .detail-author span {
-    color: #8a8f98;
+    color: var(--cw-text-3);
     font-size: 12px;
 }
 .detail-tags {
     margin: 15px 0 24px;
 }
 .markdown-body {
-    color: #30343b;
+    color: var(--cw-text-1);
     font-size: 15px;
     line-height: 1.85;
     overflow-wrap: anywhere;
@@ -797,7 +805,7 @@ watch(
 .markdown-body :deep(h2) {
     margin: 26px 0 12px;
     padding-bottom: 7px;
-    border-bottom: 1px solid #edf0f3;
+    border-bottom: 1px solid var(--cw-bg-subtle);
     font-size: 20px;
 }
 .markdown-body :deep(p) {
@@ -818,12 +826,12 @@ watch(
 .detail-metrics {
     min-height: 54px;
     margin-top: 28px;
-    border-top: 1px solid #edf0f3;
+    border-top: 1px solid var(--cw-bg-subtle);
 }
 .comments-section {
     min-height: 240px;
     padding-top: 20px;
-    border-top: 8px solid #f6f7f9;
+    border-top: 8px solid var(--cw-bg-page);
 }
 .comments-gate {
     min-height: 180px;
@@ -831,14 +839,14 @@ watch(
     align-items: center;
     justify-content: center;
     gap: 7px;
-    color: #9ca3af;
+    color: var(--cw-text-3);
 }
 .comments-section h2 {
     margin: 0 0 14px;
     font-size: 17px;
 }
 .comments-section h2 span {
-    color: #9ca3af;
+    color: var(--cw-text-3);
     font-size: 12px;
     font-weight: 400;
 }
@@ -848,13 +856,13 @@ watch(
     align-items: flex-end;
     gap: 9px;
     padding-bottom: 18px;
-    border-bottom: 1px solid #edf0f3;
+    border-bottom: 1px solid var(--cw-bg-subtle);
 }
 .comment-item {
     display: flex;
     gap: 10px;
     padding: 16px 0;
-    border-bottom: 1px solid #edf0f3;
+    border-bottom: 1px solid var(--cw-bg-subtle);
 }
 .comment-item > div {
     flex: 1;
@@ -869,7 +877,7 @@ watch(
     font-size: 12px;
 }
 .comment-delete:hover {
-    color: #e5484d;
+    color: var(--cw-danger);
 }
 .editor-heading strong {
     font-size: 16px;
@@ -882,14 +890,14 @@ watch(
 }
 .preview-block {
     padding: 14px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--cw-border);
     border-radius: 6px;
-    background: #fafafa;
+    background: var(--cw-bg-page);
 }
 .preview-block > span {
     display: block;
     margin-bottom: 12px;
-    color: #8a8f98;
+    color: var(--cw-text-3);
     font-size: 12px;
 }
 .editor-actions {
@@ -900,6 +908,6 @@ watch(
     gap: 8px;
     padding: 12px 0;
     background: #fff;
-    border-top: 1px solid #edf0f3;
+    border-top: 1px solid var(--cw-bg-subtle);
 }
 </style>

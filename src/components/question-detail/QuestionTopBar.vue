@@ -41,7 +41,7 @@ defineEmits<{
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--cw-border);
   flex-shrink: 0;
   height: 56px;
 }
@@ -55,12 +55,12 @@ defineEmits<{
 .navbar-title {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cw-text-1);
 }
 
 .navbar-id {
   font-size: 13px;
-  color: #909399;
+  color: var(--cw-text-3);
 }
 
 .navbar-right {

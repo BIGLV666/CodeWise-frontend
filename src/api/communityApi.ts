@@ -24,7 +24,41 @@ export interface SolutionPayload {
   tags: string[]
 }
 
+export type MyContentType = 'POST' | 'SOLUTION' | 'COMMENT'
+
+export interface MyContentItem {
+  targetId: string
+  type: MyContentType
+  title?: string | null
+  content?: string
+  status: number
+  tags?: string[]
+  rootId?: string | null
+  rootType?: 'POST' | 'SOLUTION' | null
+  questionId?: string | null
+  createTime?: string
+  updateTime?: string
+  rejectReason?: string | null
+  checkReason?: string | null
+}
+
+export interface MyContentCursorPage {
+  records: MyContentItem[]
+  list?: MyContentItem[]
+  nextCursor?: string | null
+  hasNext: boolean
+  hasMore?: boolean
+}
+
 const communityApi = {
+  listMyContent(params: {
+    type: MyContentType
+    pageSize: number
+    lastId?: string | number | null
+  }) {
+    return request.get<MyContentCursorPage>('/community/mine', { params })
+  },
+
   getRequestId() {
     return request.get<string>('/community/request-id')
   },

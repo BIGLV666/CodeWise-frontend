@@ -1,7 +1,29 @@
 import request from './request';
 
-export type NotificationType = 'LIKE' | 'REVIEW';
+export type NotificationType = 'LIKE' | 'REVIEW' | 'REVIEW_MASTERED' | 'CHECKED';
 export type NotificationBusinessType = 'POST' | 'COMMENT' | 'SOLUTION' | 'REVIEW_RECORD';
+
+export interface NotificationLikeExtraData {
+    userId?: string;
+    userName?: string;
+    nickName?: string;
+    avatarUrl?: string;
+    rootId?: string;
+    rootType?: 'POST' | 'SOLUTION';
+    rootCommentId?: string;
+    questionId?: string;
+}
+
+export interface NotificationCheckedExtraData {
+    passed?: boolean;
+    takeDown?: boolean;
+    title?: string;
+    message?: string;
+    rootId?: string;
+    rootType?: 'POST' | 'SOLUTION';
+    rootCommentId?: string;
+    questionId?: string;
+}
 
 export interface NotificationSummary {
     notificationCenterId: string;
@@ -17,7 +39,7 @@ export interface NotificationSummary {
 
 export interface NotificationDetail extends NotificationSummary {
     content?: string;
-    extraData?: Record<string, unknown> | null;
+    extraData?: NotificationLikeExtraData | NotificationCheckedExtraData | null;
 }
 
 export interface NotificationCursorPage {
@@ -36,16 +58,13 @@ const notificationApi = {
         return request.get<NotificationCursorPage>('/message/notifications', { params });
     },
 
+    /** 后台轮询用：失败静默，不弹全局错误提示。 */
     getUnreadCount() {
-        return request.get<number>('/message/notifications/unread-count');
+        return request.get<number>('/message/notifications/unread-count', { silent: true });
     },
 
     getDetail(notificationId: string) {
         return request.get<NotificationDetail>(`/message/notifications/${notificationId}`);
-    },
-
-    markAsRead(notificationId: string) {
-        return request.put<string>(`/message/notifications/${notificationId}/read`);
     },
 
     markAllAsRead(type?: NotificationType) {

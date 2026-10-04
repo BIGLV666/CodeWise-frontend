@@ -192,7 +192,7 @@ const formatMemory = (value?: number | null) => {
 }
 
 .result-area::-webkit-scrollbar-thumb {
-  background: #d8dce5;
+  background: var(--cw-border);
   border-radius: 2px;
 }
 
@@ -201,7 +201,7 @@ const formatMemory = (value?: number | null) => {
   align-items: center;
   justify-content: space-between;
   padding-bottom: 6px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--cw-bg-page);
   margin-bottom: 8px;
   flex-shrink: 0;
 }
@@ -218,15 +218,15 @@ const formatMemory = (value?: number | null) => {
 }
 
 .status-icon.success {
-  color: #67c23a;
+  color: var(--cw-success);
 }
 
 .status-icon.error {
-  color: #f56c6c;
+  color: var(--cw-danger);
 }
 
 .status-icon.pending {
-  color: #e6a23c;
+  color: var(--cw-warning);
   animation: spin 1s linear infinite;
 }
 
@@ -239,12 +239,12 @@ const formatMemory = (value?: number | null) => {
 .status-text {
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cw-text-1);
 }
 
 .status-metric {
   font-size: 13px;
-  color: #909399;
+  color: var(--cw-text-3);
 }
 
 .error-section {
@@ -255,7 +255,7 @@ const formatMemory = (value?: number | null) => {
 .error-title {
   font-size: 12px;
   font-weight: 600;
-  color: #f56c6c;
+  color: var(--cw-danger);
   margin-bottom: 2px;
 }
 
@@ -273,12 +273,12 @@ const formatMemory = (value?: number | null) => {
 .log-title {
   font-size: 12px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cw-text-1);
   margin-bottom: 4px;
 }
 
 .sample-card {
-  background: #fafafa;
+  background: var(--cw-bg-page);
   margin-bottom: 4px;
 }
 
@@ -288,7 +288,7 @@ const formatMemory = (value?: number | null) => {
 
 .sample-card :deep(.el-card__header) {
   padding: 2px 8px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--cw-bg-page);
 }
 
 .sample-card :deep(.el-card__body) {
@@ -307,19 +307,19 @@ const formatMemory = (value?: number | null) => {
 }
 
 .input-card .card-title {
-  color: #409eff;
+  color: var(--cw-brand);
 }
 
 .expected-card .card-title {
-  color: #67c23a;
+  color: var(--cw-success);
 }
 
 .actual-card .card-title {
-  color: #f56c6c;
+  color: var(--cw-danger);
 }
 
 .card-content {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--cw-font-mono);
   font-size: 12px;
   line-height: 1.5;
   margin: 0;
@@ -331,12 +331,12 @@ const formatMemory = (value?: number | null) => {
 }
 
 .card-content.expected {
-  border-left: 3px solid #67c23a;
+  border-left: 3px solid var(--cw-success);
   padding-left: 6px;
 }
 
 .card-content.actual {
-  border-left: 3px solid #f56c6c;
+  border-left: 3px solid var(--cw-danger);
   padding-left: 6px;
 }
 
@@ -347,7 +347,7 @@ const formatMemory = (value?: number | null) => {
 .summary-title {
   font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cw-text-1);
   margin-bottom: 6px;
 }
 
@@ -371,11 +371,11 @@ const formatMemory = (value?: number | null) => {
 }
 
 .testcase-dot.passed {
-  background: #67c23a;
+  background: var(--cw-success);
 }
 
 .testcase-dot.failed {
-  background: #f56c6c;
+  background: var(--cw-danger);
 }
 
 .log-section {
@@ -384,10 +384,10 @@ const formatMemory = (value?: number | null) => {
 }
 
 .log-content {
-  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-family: var(--cw-font-mono);
   font-size: 11px;
   line-height: 1.6;
-  background: #1a1a2e;
+  background: var(--cw-text-1);
   color: #d4d4d4;
   padding: 10px 12px;
   border-radius: 6px;

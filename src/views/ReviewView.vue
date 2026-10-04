@@ -3,8 +3,7 @@
     <header class="navbar">
       <div class="navbar-left">
         <button class="logo" type="button" @click="goHome">
-          <span class="logo-icon">⚡</span>
-          <span class="logo-text">CodeWise</span>
+          <BrandLogo :size="28" />
         </button>
         <nav class="nav-menu">
           <button class="nav-item" type="button" @click="goHome">题库</button>
@@ -41,7 +40,7 @@
         <div class="overview-copy">
           <span class="eyebrow">今日复习 · {{ todayLabel }}</span>
           <h1>把做过的题变成稳定手感</h1>
-          <p>这里会按后端 SM-2 复习计划拉取今天该练的题。进入题目后仍使用原来的详情页和编辑器，提交时会标记为 REVIEW。</p>
+          <p>这里会按 SM-2 复习计划拉取今天该练的题。进入题目后仍使用原来的详情页和编辑器，提交时会标记为 REVIEW。</p>
 
           <div class="overview-actions">
             <el-button class="start-button" type="primary" :disabled="!filteredTasks.length" @click="startReview">
@@ -194,7 +193,7 @@
                 <template #label>
                   <span class="field-label">
                     自动复习推进
-                    <el-tooltip content="开启后，后端会根据提交结果和 SM-2 算法自动更新下一次复习时间。" placement="top">
+                    <el-tooltip content="开启后，会根据提交结果和 SM-2 算法自动更新下一次复习时间。" placement="top">
                       <el-icon><QuestionFilled /></el-icon>
                     </el-tooltip>
                   </span>
@@ -451,7 +450,7 @@ const loadReviewPage = async () => {
     reviewRecord.value = todayReview.record
     applyConfig(configRes?.data || configRes || {})
   } catch (error) {
-    errorMessage.value = '复习计划加载失败，请确认后端服务和登录状态正常'
+    errorMessage.value = '复习计划加载失败，请稍后重试'
     reviewTasks.value = []
     reviewRecord.value = null
   } finally {
@@ -548,9 +547,9 @@ onActivated(loadReviewPage)
 <style scoped>
 .review-view {
   min-height: 100vh;
-  background: #f6f7f9;
-  color: #191c1e;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--cw-bg-page);
+  color: var(--cw-text-1);
+  font-family: var(--cw-font-sans);
 }
 
 .navbar {
@@ -563,7 +562,7 @@ onActivated(loadReviewPage)
   align-items: center;
   justify-content: space-between;
   background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
 }
 
 .navbar-left,
@@ -597,11 +596,11 @@ onActivated(loadReviewPage)
 }
 
 .logo-icon {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .logo-text {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
 }
 
 .nav-menu {
@@ -611,15 +610,15 @@ onActivated(loadReviewPage)
 .nav-item {
   padding: 7px 15px;
   border-radius: 6px;
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   font-size: 14px;
   font-weight: 500;
 }
 
 .nav-item:hover,
 .nav-item.active {
-  color: #ffa116;
-  background: #fff8f0;
+  color: var(--cw-brand);
+  background: var(--cw-brand-soft);
 }
 
 .search-input {
@@ -628,7 +627,7 @@ onActivated(loadReviewPage)
 
 .search-input :deep(.el-input__wrapper) {
   border-radius: 999px;
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
 }
 
 .review-shell {
@@ -643,7 +642,7 @@ onActivated(loadReviewPage)
 .overview-panel,
 .review-table-panel {
   background: #ffffff;
-  border: 1px solid #e8ecf1;
+  border: 1px solid var(--cw-border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
@@ -667,15 +666,15 @@ onActivated(loadReviewPage)
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #fff8f0;
-  color: #b86b00;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
   font-size: 13px;
   font-weight: 600;
 }
 
 .overview-copy h1 {
   margin: 18px 0 12px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 34px;
   line-height: 1.22;
   letter-spacing: 0;
@@ -698,8 +697,8 @@ onActivated(loadReviewPage)
 
 .start-button {
   min-width: 118px;
-  background: #262626;
-  border-color: #262626;
+  background: var(--cw-text-1);
+  border-color: var(--cw-text-1);
 }
 
 .progress-card {
@@ -707,9 +706,9 @@ onActivated(loadReviewPage)
   display: flex;
   align-items: center;
   gap: 26px;
-  border: 1px solid #edf0f3;
+  border: 1px solid var(--cw-bg-subtle);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--cw-bg-page);
 }
 
 .progress-ring {
@@ -732,11 +731,11 @@ onActivated(loadReviewPage)
 }
 
 .ring-track {
-  stroke: #eef0f3;
+  stroke: var(--cw-bg-page);
 }
 
 .ring-value {
-  stroke: #00b8a3;
+  stroke: var(--cw-success);
   stroke-linecap: round;
   transition: stroke-dashoffset 0.2s ease;
 }
@@ -753,11 +752,11 @@ onActivated(loadReviewPage)
 .ring-text strong {
   font-size: 30px;
   line-height: 1;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
 }
 
 .ring-text span {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
@@ -771,7 +770,7 @@ onActivated(loadReviewPage)
 .metric-item {
   min-height: 82px;
   padding: 14px 16px;
-  border: 1px solid #e8ecf1;
+  border: 1px solid var(--cw-border);
   border-radius: 8px;
   background: #ffffff;
 }
@@ -782,18 +781,18 @@ onActivated(loadReviewPage)
 }
 
 .metric-item span {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
 .metric-item strong {
   margin-top: 10px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 22px;
 }
 
 .metric-item .accent {
-  color: #00a38f;
+  color: var(--cw-success);
 }
 
 .review-table-panel {
@@ -806,19 +805,19 @@ onActivated(loadReviewPage)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
   background: #ffffff;
 }
 
 .table-header h2 {
   margin: 0;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 18px;
 }
 
 .table-header p {
   margin: 5px 0 0;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
@@ -833,7 +832,7 @@ onActivated(loadReviewPage)
 }
 
 .review-table {
-  --el-table-row-hover-bg-color: #fffdf9;
+  --el-table-row-hover-bg-color: var(--cw-brand-soft);
 }
 
 .review-table :deep(.el-table__cell) {
@@ -849,7 +848,7 @@ onActivated(loadReviewPage)
 }
 
 .review-table :deep(.el-table__row:hover td.el-table__cell) {
-  background: #fffdf9 !important;
+  background: var(--cw-brand-soft) !important;
   box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
 }
 
@@ -865,17 +864,17 @@ onActivated(loadReviewPage)
 }
 
 .question-cell strong {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 15px;
 }
 
 .review-table :deep(.el-table__row:hover .question-cell strong) {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .question-cell span,
 .rate-cell span {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 12px;
 }
 
@@ -895,7 +894,7 @@ onActivated(loadReviewPage)
 .preset-card {
   min-height: 126px;
   padding: 16px;
-  border: 1px solid #e8ecf1;
+  border: 1px solid var(--cw-border);
   border-radius: 8px;
   background: #ffffff;
   text-align: left;
@@ -905,8 +904,8 @@ onActivated(loadReviewPage)
 
 .preset-card:hover,
 .preset-card.active {
-  border-color: #ffa116;
-  background: #fffaf3;
+  border-color: var(--cw-brand);
+  background: var(--cw-brand-soft);
   box-shadow: 0 8px 18px rgba(255, 161, 22, 0.1);
 }
 
@@ -917,19 +916,19 @@ onActivated(loadReviewPage)
 }
 
 .preset-card span {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-weight: 700;
 }
 
 .preset-card strong {
   margin-top: 10px;
-  color: #ffa116;
+  color: var(--cw-brand);
   font-size: 18px;
 }
 
 .preset-card small {
   margin-top: 8px;
-  color: #6b7280;
+  color: var(--cw-text-3);
   line-height: 1.5;
 }
 
@@ -950,13 +949,13 @@ onActivated(loadReviewPage)
 }
 
 .advanced-config-collapse {
-  border-top: 1px solid #edf0f3;
-  border-bottom: 1px solid #edf0f3;
+  border-top: 1px solid var(--cw-bg-subtle);
+  border-bottom: 1px solid var(--cw-bg-subtle);
 }
 
 .advanced-config-collapse :deep(.el-collapse-item__header) {
   min-height: 48px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-weight: 700;
 }
 
@@ -971,13 +970,13 @@ onActivated(loadReviewPage)
 }
 
 .advanced-title small {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 12px;
   font-weight: 400;
 }
 
 .config-form :deep(.el-form-item__label) {
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   font-weight: 600;
 }
 
@@ -995,7 +994,7 @@ onActivated(loadReviewPage)
 }
 
 .field-label .el-icon:hover {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .config-form :deep(.el-input-number) {

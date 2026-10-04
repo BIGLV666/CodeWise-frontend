@@ -1,95 +1,94 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: '/', redirect: '/login' },
+    { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { stack: 'auth' } },
+    { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue'), meta: { stack: 'auth' } },
+    { path: '/forgot-password', name: 'forgot-password', component: () => import('@/views/ForgotPasswordView.vue'), meta: { stack: 'auth' } },
+
+    { path: '/home', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { stack: 'root', keepAlive: true } },
+    { path: '/favorites', name: 'favorites', component: () => import('@/views/FavoritesView.vue'), meta: { stack: 'root' } },
+    { path: '/plan', name: 'plan', component: () => import('@/views/PlanView.vue'), meta: { stack: 'root' } },
+    { path: '/notes', name: 'notes', component: () => import('@/views/NotesView.vue'), meta: { stack: 'root' } },
+    { path: '/review', name: 'review', component: () => import('@/views/ReviewView.vue'), meta: { stack: 'root' } },
+    { path: '/inbox', name: 'inbox', component: () => import('@/views/InboxView.vue'), meta: { stack: 'root' } },
+    { path: '/discuss', name: 'discuss', component: () => import('@/views/DiscussionView.vue'), meta: { stack: 'root' } },
+    { path: '/profile', name: 'profile', component: () => import('@/views/ProfileView.vue'), meta: { stack: 'root' } },
+    { path: '/agent', name: 'agent', component: () => import('@/views/AgentView.vue'), meta: { stack: 'root' } },
+
+    { path: '/questions/import/leetcode', name: 'leetcode-import', component: () => import('@/views/LeetCodeImportView.vue'), meta: { stack: 'detail' } },
+    { path: '/questions/function-test-generator', name: 'function-test-generator', component: () => import('@/views/FunctionTestGeneratorView.vue'), meta: { stack: 'detail', remountOnQuery: true } },
+    { path: '/questiondetailview', name: 'questiondetailview', component: () => import('@/views/QuestionDetailView.vue'), meta: { stack: 'detail', remountOnQuery: true } },
+    { path: '/discuss/create', name: 'discussion-create', component: () => import('@/views/DiscussionComposeView.vue'), meta: { stack: 'detail' } },
+    { path: '/discuss/:postId', name: 'discussion-detail', component: () => import('@/views/DiscussionDetailView.vue'), meta: { stack: 'detail', remountOnQuery: true } },
+
     {
-      path: '/',
-      redirect: '/login',
+      path: '/admin',
+      component: () => import('@/layouts/AdminLayout.vue'),
+      redirect: '/admin/container-pool',
+      meta: { requiresAdmin: true, stack: 'module' },
+      children: [
+        { path: 'container-pool', name: 'admin-container-pool', component: () => import('@/views/AdminContainerPoolView.vue') },
+        { path: 'failure-submits', name: 'admin-failure-submits', component: () => import('@/views/AdminFailureSubmitView.vue') },
+        { path: 'moderation', name: 'admin-moderation', component: () => import('@/views/AdminModerationView.vue') },
+        { path: 'appeals', name: 'admin-appeals', component: () => import('@/views/AdminAppealsView.vue') },
+        { path: 'users', name: 'admin-users', component: () => import('@/views/AdminUsersView.vue') },
+        { path: 'testcases', name: 'admin-testcases', component: () => import('@/views/AdminTestCasesView.vue') },
+        { path: 'artifact-generator', name: 'admin-artifact-generator', component: () => import('@/views/AdminFunctionArtifactView.vue') },
+      ],
     },
-    {
-      path: '/login',
-      name: 'login',
-      component: () => import('@/views/LoginView.vue'),
-    },
-    {
-      path: '/home',
-      name: 'home',
-      component: () => import('@/views/HomeView.vue'),
-    },
-    {
-      path: '/favorites',
-      name: 'favorites',
-      component: () => import('@/views/FavoritesView.vue'),
-    },
-    {
-      path: '/review',
-      name: 'review',
-      component: () => import('@/views/ReviewView.vue'),
-    },
-    {
-      path: '/inbox',
-      name: 'inbox',
-      component: () => import('@/views/InboxView.vue'),
-    },
-    {
-      path: '/discuss',
-      name: 'discuss',
-      component: () => import('@/views/DiscussionView.vue'),
-    },
-    {
-      path: '/discuss/create',
-      name: 'discussion-create',
-      component: () => import('@/views/DiscussionComposeView.vue'),
-    },
-    {
-      path: '/discuss/:postId',
-      name: 'discussion-detail',
-      component: () => import('@/views/DiscussionDetailView.vue'),
-    },
-    {
-      path: '/profile',
-      name: 'profile',
-      component: () => import('@/views/ProfileView.vue'),
-    },
-    {
-      path: '/questiondetailview',
-      name: 'questiondetailview',
-      component: () => import('@/views/QuestionDetailView.vue'),
-    },
-    {
-      path: '/register',
-      name: 'register',
-      component: () => import('@/views/RegisterView.vue'),
-    },
+    { path: '/content-render', name: 'content-render', component: () => import('@/views/ContentRenderView.vue'), meta: { requiresAdmin: true, stack: 'detail' } },
   ],
 })
 
-// src/router/index.js
-router.beforeEach((to, from, next) => {
+const PUBLIC_PATHS = new Set(['/login', '/register', '/forgot-password'])
+
+function clearStoredSession() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('userId')
+  localStorage.removeItem('userName')
+  localStorage.removeItem('avatarUrl')
+  localStorage.removeItem('roleId')
+}
+
+function hasValidToken() {
   const token = localStorage.getItem('token')
-  
-   //如果要去的页面是登录页
-  if (to.path === '/login') {
-    // 如果已登录，跳转到首页
-    if (token) {
-      next('/home')
-    } else {
-      next() // 未登录，正常显示登录页
+  if (!token) return false
+
+  try {
+    const payloadPart = token.split('.')[1]
+    if (!payloadPart) return true
+    const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(normalized)) as { exp?: number }
+    if (!payload.exp || payload.exp * 1000 > Date.now()) return true
+    clearStoredSession()
+    return false
+  } catch {
+    return true
+  }
+}
+
+router.beforeEach(async (to) => {
+  const authenticated = hasValidToken()
+  if (PUBLIC_PATHS.has(to.path)) return authenticated ? '/home' : true
+  if (!authenticated) return { path: '/login', query: { redirect: to.fullPath } }
+
+  // 管理员路由做一次前置拦截，避免非管理员进入后被逐个接口 403。
+  // 这只是界面层面的引导，真正的鉴权仍由后端 @RequireAdmin 负责。
+  if (to.meta?.requiresAdmin) {
+    const { useUserStore, ADMIN_ROLE_ID } = await import('@/stores/User')
+    const userStore = useUserStore()
+    const roleId = await userStore.ensureRoleId()
+    if (Number(roleId) !== ADMIN_ROLE_ID) {
+      ElMessage.error('该页面仅管理员可访问')
+      return '/home'
     }
   }
-  // 如果要去的页面需要登录
-  else if (to.meta.requiresAuth) {
-    if (token) {
-     next() // 已登录，正常访问
-    } else {
-      next('/login') // 未登录，跳转登录
-    }
-  }
-  // 其他情况
-  else {
-    next()
-  }
+  return true
 })
 
 export default router
+

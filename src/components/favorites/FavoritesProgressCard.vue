@@ -86,7 +86,7 @@ defineEmits<{
 <style scoped>
 .progress-card {
   border-radius: 8px;
-  border-color: #e8ecf1;
+  border-color: var(--cw-border);
 }
 
 .collection-header {
@@ -104,8 +104,8 @@ defineEmits<{
   align-items: center;
   justify-content: center;
   margin-bottom: 16px;
-  background: #fff8f0;
-  color: #ffa116;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand);
   font-size: 30px;
 }
 
@@ -117,7 +117,7 @@ defineEmits<{
 
 .collection-header p {
   margin: 6px 0 0;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -139,8 +139,8 @@ defineEmits<{
 }
 
 .start-button {
-  background: #262626;
-  border-color: #262626;
+  background: var(--cw-text-1);
+  border-color: var(--cw-text-1);
   font-weight: 600;
 }
 
@@ -152,7 +152,7 @@ defineEmits<{
 }
 
 .progress-title small {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 12px;
   font-weight: 500;
 }
@@ -170,7 +170,7 @@ defineEmits<{
 }
 
 .progress-total {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
@@ -187,7 +187,7 @@ defineEmits<{
   justify-content: space-between;
   padding: 9px 12px;
   border-radius: 8px;
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
   font-size: 13px;
 }
 
@@ -196,15 +196,15 @@ defineEmits<{
 }
 
 .stat-line.easy span {
-  color: #67c23a;
+  color: var(--cw-success);
 }
 
 .stat-line.medium span {
-  color: #e6a23c;
+  color: var(--cw-warning);
 }
 
 .stat-line.hard span {
-  color: #f56c6c;
+  color: var(--cw-danger);
 }
 
 @media (max-width: 768px) {

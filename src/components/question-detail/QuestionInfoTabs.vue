@@ -59,6 +59,7 @@
         :active="activeTab === 'solution'"
         :question-id="questionData?.questionId || ''"
         :question-title="questionData?.title"
+        :initial-solution-id="initialSolutionId"
       />
     </el-tab-pane>
 
@@ -108,7 +109,7 @@
     <el-tab-pane label="测试用例" name="testcases">
       <div class="testcase-editor">
         <div class="testcase-toolbar">
-          <el-button size="small" type="primary" @click="$emit('add-testcase')">
+          <el-button v-if="!isFunctionQuestion" size="small" type="primary" @click="$emit('add-testcase')">
             添加用例
           </el-button>
           <el-button size="small" plain @click="$emit('reset-to-sample')">
@@ -117,10 +118,128 @@
           <el-button size="small" type="success" :loading="debugging" @click="$emit('debug')">
             调试运行
           </el-button>
-          <span class="testcase-hint">点击卡片查看结果 | 双击卡片编辑</span>
+          <el-tooltip v-if="canProvideTests" content="将自定义用例补充到这道题的判题数据中" placement="top">
+            <el-button
+              size="small"
+              type="warning"
+              plain
+              :icon="Upload"
+              :loading="providingTests"
+              @click="$emit('provide-tests')"
+            >
+              提供测试
+            </el-button>
+          </el-tooltip>
+          <el-button
+            v-if="canGenerateRandom"
+            size="small"
+            type="primary"
+            plain
+            :icon="MagicStick"
+            @click="$emit('generate-random')"
+          >
+            随机生成
+          </el-button>
+          <span class="testcase-hint">
+            {{ isFunctionQuestion ? '每个参数单独填写，数组使用 JSON 格式' : '点击卡片查看结果 | 双击卡片编辑' }}
+          </span>
         </div>
 
-        <div class="testcase-list">
+        <div v-if="isFunctionQuestion" class="function-cases">
+          <div class="function-case-tabs">
+            <el-button
+              :icon="ArrowLeft"
+              circle
+              text
+              size="small"
+              aria-label="向前查看更多样例"
+              @click="scrollFunctionCases(-1)"
+            />
+            <div ref="functionCaseTabRail" class="function-case-tab-rail" @wheel.prevent="handleFunctionCaseWheel">
+              <button
+                v-for="(_, index) in debugTestCases"
+                :key="index"
+                type="button"
+                class="function-case-tab"
+                :class="{ active: activeFunctionCaseIndex === index }"
+                @click="$emit('select-testcase', index)"
+              >
+                样例 {{ index + 1 }}
+                <span v-if="debugTestCases[index]?.passed" class="case-result-dot passed"></span>
+                <span v-else-if="debugTestCases[index]?.result" class="case-result-dot failed"></span>
+              </button>
+            </div>
+            <el-button
+              :icon="ArrowRight"
+              circle
+              text
+              size="small"
+              aria-label="向后查看更多样例"
+              @click="scrollFunctionCases(1)"
+            />
+            <el-tooltip content="添加样例" placement="top">
+              <el-button :icon="Plus" circle text size="small" aria-label="添加样例" @click="$emit('add-testcase')" />
+            </el-tooltip>
+          </div>
+
+          <div v-if="activeFunctionCase" class="function-case-panel">
+            <div class="function-case-panel-header">
+              <div>
+                <span class="function-case-title">样例 {{ activeFunctionCaseIndex + 1 }}</span>
+                <el-tag v-if="activeFunctionCase.provided" type="success" size="small">已提供</el-tag>
+                <el-tag v-else-if="activeFunctionCase.result" :type="activeFunctionCase.passed ? 'success' : 'danger'" size="small">
+                  {{ activeFunctionCase.result.submitStatus }}
+                </el-tag>
+              </div>
+              <el-tooltip content="删除当前样例" placement="top">
+                <el-button
+                  :icon="Delete"
+                  circle
+                  text
+                  type="danger"
+                  aria-label="删除当前样例"
+                  @click="$emit('remove-testcase', activeFunctionCaseIndex)"
+                />
+              </el-tooltip>
+            </div>
+
+            <div class="function-parameter-list">
+              <div v-for="(parameter, index) in functionParameters" :key="`${parameter.name}-${index}`" class="function-parameter-field">
+                <div class="function-parameter-label">
+                  <span>{{ parameter.name }}</span>
+                  <code>{{ parameter.type }}</code>
+                </div>
+                <el-input
+                  :model-value="getFunctionParameterValue(activeFunctionCase, index)"
+                  type="textarea"
+                  :rows="parameter.type.includes('[]') ? 2 : 1"
+                  resize="none"
+                  spellcheck="false"
+                  :placeholder="getFunctionParameterPlaceholder(parameter.type)"
+                  @update:model-value="updateFunctionParameter(activeFunctionCase, index, String($event))"
+                />
+              </div>
+            </div>
+
+            <div class="function-parameter-field expected-output-field">
+              <div class="function-parameter-label">
+                <span>预期输出</span>
+                <code>{{ questionData?.functionConfig?.outputType || '返回值' }}</code>
+              </div>
+              <el-input
+                :model-value="activeFunctionCase.expectedOutput"
+                type="textarea"
+                :rows="2"
+                resize="none"
+                spellcheck="false"
+                placeholder="可留空，仅查看实际输出"
+                @update:model-value="updateFunctionExpectedOutput(activeFunctionCase, String($event))"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="testcase-list">
           <div
             v-for="(tc, index) in debugTestCases"
             :key="index"
@@ -152,7 +271,8 @@
                 {{ tc.input ? tc.input.slice(0, 40) + (tc.input.length > 40 ? '...' : '') : '（空）' }}
               </div>
               <div class="testcase-card-footer">
-                <el-tag v-if="tc.result" type="primary">
+                <el-tag v-if="tc.provided" type="success" size="small">已提供</el-tag>
+                <el-tag v-else-if="tc.result" type="primary">
                   {{ tc.result.submitStatus }}
                 </el-tag>
                 <el-tag v-else type="info" size="small">等待</el-tag>
@@ -192,11 +312,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed, nextTick, ref, watch } from 'vue'
 import type { TabsPaneContext } from 'element-plus'
+import { ArrowLeft, ArrowRight, Delete, MagicStick, Plus, Upload } from '@element-plus/icons-vue'
 import type { DebugTestCase, SampleCase } from '@/types/QuestionDetail'
 import QuestionSolutionPanel from '@/components/question-detail/QuestionSolutionPanel.vue'
 
-defineProps<{
+const props = defineProps<{
   activeTab: string
   questionData: any
   difficultyTag: string
@@ -212,6 +334,10 @@ defineProps<{
   selectedTestCaseIndex: number | null
   editingTestCaseIndex: number | null
   debugging: boolean
+  canProvideTests: boolean
+  providingTests: boolean
+  canGenerateRandom: boolean
+  initialSolutionId?: string
 }>()
 
 defineEmits<{
@@ -221,12 +347,89 @@ defineEmits<{
   (event: 'add-testcase'): void
   (event: 'reset-to-sample'): void
   (event: 'debug'): void
+  (event: 'provide-tests'): void
+  (event: 'generate-random'): void
   (event: 'select-testcase', value: number): void
   (event: 'start-edit-testcase', value: number): void
   (event: 'remove-testcase', value: number): void
   (event: 'finish-edit-testcase'): void
   (event: 'cancel-edit-testcase'): void
 }>()
+
+interface FunctionParameter {
+  type: string
+  name: string
+}
+
+const isFunctionQuestion = computed(() => props.questionData?.questionType === 'FUNCTION')
+
+const functionParameters = computed<FunctionParameter[]>(() => {
+  try {
+    const raw = props.questionData?.functionConfig?.parameterConfig
+    const value = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (!Array.isArray(value)) return []
+    return value
+      .map((item) => ({ type: String(item?.type || ''), name: String(item?.name || '') }))
+      .filter((item) => item.type && item.name)
+  } catch {
+    return []
+  }
+})
+
+const activeFunctionCaseIndex = computed(() => {
+  const selected = props.selectedTestCaseIndex
+  if (selected !== null && selected >= 0 && selected < props.debugTestCases.length) return selected
+  return 0
+})
+
+const activeFunctionCase = computed(() => props.debugTestCases[activeFunctionCaseIndex.value] || null)
+const functionCaseTabRail = ref<HTMLElement | null>(null)
+
+const scrollFunctionCases = (direction: -1 | 1) => {
+  functionCaseTabRail.value?.scrollBy({ left: direction * 180, behavior: 'smooth' })
+}
+
+const handleFunctionCaseWheel = (event: WheelEvent) => {
+  if (!functionCaseTabRail.value) return
+  functionCaseTabRail.value.scrollLeft += event.deltaY || event.deltaX
+}
+
+watch(activeFunctionCaseIndex, () => {
+  nextTick(() => {
+    functionCaseTabRail.value
+      ?.querySelector<HTMLElement>('.function-case-tab.active')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+  })
+})
+
+const getFunctionInputValues = (testCase: DebugTestCase) => {
+  const values = testCase.input.split(/\r?\n/)
+  while (values.length < functionParameters.value.length) values.push('')
+  return values.slice(0, functionParameters.value.length)
+}
+
+const getFunctionParameterValue = (testCase: DebugTestCase, index: number) => {
+  return getFunctionInputValues(testCase)[index] || ''
+}
+
+const updateFunctionParameter = (testCase: DebugTestCase, index: number, value: string) => {
+  const values = getFunctionInputValues(testCase)
+  values[index] = value
+  testCase.input = values.join('\n')
+  testCase.provided = false
+}
+
+const updateFunctionExpectedOutput = (testCase: DebugTestCase, value: string) => {
+  testCase.expectedOutput = value
+  testCase.provided = false
+}
+
+const getFunctionParameterPlaceholder = (type: string) => {
+  if (type.includes('[]')) return type === 'String[]' ? '["a", "b"]' : '[1, 2, 3]'
+  if (type === 'String' || type === 'char' || type === 'Character') return '输入字符串'
+  if (type === 'boolean' || type === 'Boolean') return 'true'
+  return '输入参数值'
+}
 </script>
 
 <style scoped>
@@ -270,23 +473,23 @@ defineEmits<{
   flex-wrap: wrap;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--cw-bg-page);
 }
 
 .question-id {
   font-size: 13px;
-  color: #909399;
+  color: var(--cw-text-3);
 }
 
 .question-title {
   font-size: 22px;
   font-weight: 700;
-  color: #303133;
+  color: var(--cw-text-1);
 }
 
 .meta-info {
   font-size: 13px;
-  color: #909399;
+  color: var(--cw-text-3);
   margin-left: auto;
 }
 
@@ -297,14 +500,14 @@ defineEmits<{
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--cw-text-1);
   margin-bottom: 10px;
 }
 
 .markdown-body {
   font-size: 15px;
   line-height: 1.9;
-  color: #303133;
+  color: var(--cw-text-1);
 }
 
 .markdown-body :deep(p) {
@@ -312,10 +515,10 @@ defineEmits<{
 }
 
 .markdown-body :deep(code) {
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
   padding: 2px 8px;
   border-radius: 4px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--cw-font-mono);
   font-size: 14px;
 }
 
@@ -347,16 +550,16 @@ defineEmits<{
 }
 
 .sample-box {
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
   border-radius: 8px;
   padding: 14px 18px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--cw-border);
 }
 
 .sample-box pre {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--cw-font-mono);
   font-size: 14px;
-  color: #303133;
+  color: var(--cw-text-1);
   margin: 6px 0 0 0;
   white-space: pre-wrap;
   word-break: break-all;
@@ -366,7 +569,7 @@ defineEmits<{
 .sample-label {
   font-size: 13px;
   font-weight: 600;
-  color: #909399;
+  color: var(--cw-text-3);
 }
 
 .sample-output-label {
@@ -376,11 +579,11 @@ defineEmits<{
 .stats-bar {
   margin-top: 24px;
   padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--cw-bg-page);
   display: flex;
   gap: 24px;
   font-size: 14px;
-  color: #909399;
+  color: var(--cw-text-3);
   flex-wrap: wrap;
 }
 
@@ -421,8 +624,167 @@ defineEmits<{
 
 .testcase-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--cw-text-3);
   margin-left: auto;
+}
+
+.function-cases {
+  min-height: 0;
+}
+
+.function-case-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+  min-width: 0;
+}
+
+.function-case-tabs > .el-button {
+  flex: 0 0 auto;
+}
+
+.function-case-tab-rail {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 0 5px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cw-border) transparent;
+}
+
+.function-case-tab-rail::-webkit-scrollbar {
+  height: 4px;
+}
+
+.function-case-tab-rail::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--cw-border);
+}
+
+.function-case-tab {
+  position: relative;
+  min-width: 76px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #656d78;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.function-case-tab:hover {
+  background: var(--cw-bg-page);
+  color: var(--cw-text-1);
+}
+
+.function-case-tab.active {
+  background: #e9eaec;
+  color: var(--cw-text-1);
+  font-weight: 600;
+}
+
+.case-result-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.case-result-dot.passed {
+  background: var(--cw-success);
+}
+
+.case-result-dot.failed {
+  background: var(--cw-danger);
+}
+
+.function-case-panel {
+  padding: 18px;
+  border: 1px solid var(--cw-border);
+  border-radius: 7px;
+  background: #ffffff;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.04);
+}
+
+.function-case-panel-header {
+  min-height: 30px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.function-case-panel-header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.function-case-title {
+  color: var(--cw-text-1);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.function-parameter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.function-parameter-field {
+  min-width: 0;
+}
+
+.function-parameter-label {
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #3f454d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.function-parameter-label code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #e9ebee;
+  color: #7b828c;
+  font-family: var(--cw-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.function-parameter-field :deep(.el-textarea__inner) {
+  padding: 9px 11px;
+  border: 0;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #dfe2e6 inset;
+  color: #25282d;
+  font-family: var(--cw-font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.function-parameter-field :deep(.el-textarea__inner:focus) {
+  box-shadow: 0 0 0 1px #b8bdc5 inset;
+}
+
+.expected-output-field {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e4e8;
 }
 
 .testcase-list {
@@ -435,7 +797,7 @@ defineEmits<{
 }
 
 .testcase-card {
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
   border: 2px solid transparent;
   border-radius: 8px;
   padding: 10px 14px;
@@ -445,31 +807,31 @@ defineEmits<{
 
 .testcase-card:hover {
   background: #eef2f7;
-  border-color: #d8dce5;
+  border-color: var(--cw-border);
 }
 
 .testcase-card.is-active {
-  border-color: #409eff;
-  background: #ecf5ff;
+  border-color: var(--cw-brand);
+  background: var(--cw-brand-soft);
 }
 
 .testcase-card.passed {
-  border-left: 4px solid #67c23a;
+  border-left: 4px solid var(--cw-success);
 }
 
 .testcase-card.failed {
-  border-left: 4px solid #f56c6c;
+  border-left: 4px solid var(--cw-danger);
 }
 
 .testcase-card.is-editing {
-  border-color: #409eff;
-  background: #ecf5ff;
+  border-color: var(--cw-brand);
+  background: var(--cw-brand-soft);
   cursor: default;
 }
 
 .testcase-card.is-editing:hover {
-  border-color: #409eff;
-  background: #ecf5ff;
+  border-color: var(--cw-brand);
+  background: var(--cw-brand-soft);
 }
 
 .testcase-card-header {
@@ -481,7 +843,7 @@ defineEmits<{
 .testcase-card-index {
   font-weight: 600;
   font-size: 13px;
-  color: #303133;
+  color: var(--cw-text-1);
 }
 
 .testcase-card-actions {
@@ -506,9 +868,9 @@ defineEmits<{
 
 .testcase-card-preview {
   font-size: 13px;
-  color: #606266;
+  color: var(--cw-text-2);
   margin: 4px 0;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--cw-font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -523,7 +885,7 @@ defineEmits<{
 
 .testcase-card-metrics {
   font-size: 12px;
-  color: #909399;
+  color: var(--cw-text-3);
 }
 
 .testcase-edit-body {
@@ -539,12 +901,12 @@ defineEmits<{
 .testcase-edit-label {
   font-size: 12px;
   font-weight: 500;
-  color: #606266;
+  color: var(--cw-text-2);
   margin-bottom: 2px;
 }
 
 .testcase-edit-body .el-textarea {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--cw-font-mono);
 }
 
 .testcase-edit-body .el-textarea :deep(textarea) {

@@ -2,6 +2,16 @@
 import { defineStore } from 'pinia'
 import type userDto  from '@/types/UserDto'
 
+/** 管理员角色 ID，后端约定 2 为管理员。 */
+export const ADMIN_ROLE_ID = 2
+
+function readStoredRoleId(): number | undefined {
+  const raw = localStorage.getItem('roleId')
+  if (raw === null || raw === '') return undefined
+  const parsed = Number(raw)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
 export const useUserStore = defineStore('user', {
   state: () => ({
     token: localStorage.getItem('token') || '',
@@ -9,6 +19,7 @@ export const useUserStore = defineStore('user', {
       userId: localStorage.getItem('userId') || '',
       userName: localStorage.getItem('userName') || '',
       avatarUrl: localStorage.getItem('avatarUrl') || '',
+      roleId: readStoredRoleId(),
     } as userDto | null,
   }),
   
@@ -17,6 +28,12 @@ export const useUserStore = defineStore('user', {
     getUserId: (state) => state.userDto?.userId,
     getUsername: (state) => state.userDto?.userName,
     getAvatarUrl: (state) => state.userDto?.avatarUrl,
+    getRoleId: (state) => state.userDto?.roleId,
+    /**
+     * 是否管理员。仅用于界面展示，真正的权限校验在后端 @RequireAdmin。
+     * roleId 尚未加载时返回 false。
+     */
+    isAdmin: (state) => Number(state.userDto?.roleId) === ADMIN_ROLE_ID,
   },
   
   actions: {
@@ -31,6 +48,11 @@ export const useUserStore = defineStore('user', {
       } else {
         localStorage.removeItem('avatarUrl')
       }
+      if (data.userDto.roleId !== undefined && data.userDto.roleId !== null) {
+        localStorage.setItem('roleId', String(data.userDto.roleId))
+      } else {
+        localStorage.removeItem('roleId')
+      }
     },
     
     logout() {
@@ -40,6 +62,7 @@ export const useUserStore = defineStore('user', {
       localStorage.removeItem('userId')
       localStorage.removeItem('userName')
       localStorage.removeItem('avatarUrl')
+      localStorage.removeItem('roleId')
     },
     
     updateUser(data: Partial<userDto>) {
@@ -56,6 +79,32 @@ export const useUserStore = defineStore('user', {
           localStorage.removeItem('avatarUrl')
         }
       }
+      if (data.roleId !== undefined) {
+        localStorage.setItem('roleId', String(data.roleId))
+      }
+    },
+
+    /**
+     * 确保 roleId 已就绪。
+     * 刷新页面后若本地没有缓存角色，则回源查询当前用户一次。
+     */
+    async ensureRoleId() {
+      if (!this.token) return undefined
+      if (this.userDto?.roleId !== undefined && this.userDto?.roleId !== null) {
+        return this.userDto.roleId
+      }
+      try {
+        const { default: userApi } = await import('@/api/userApi')
+        const response: any = await userApi.getCurrentUser()
+        const user = response?.data ?? response
+        if (user?.roleId !== undefined) {
+          this.updateUser({ roleId: Number(user.roleId) })
+          return Number(user.roleId)
+        }
+      } catch (error) {
+        console.error('获取用户角色失败:', error)
+      }
+      return undefined
     },
   },
 })

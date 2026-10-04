@@ -17,11 +17,11 @@
         <el-icon><Compass /></el-icon>
         <span>探索</span>
       </div>
-      <div class="menu-item">
-        <el-icon><Reading /></el-icon>
-        <span>题解书</span>
+      <div class="menu-item" @click="goNotes">
+        <el-icon><Notebook /></el-icon>
+        <span>笔记</span>
       </div>
-      <div class="menu-item">
+      <div class="menu-item" @click="goPlan">
         <el-icon><Calendar /></el-icon>
         <span>学习计划</span>
       </div>
@@ -50,7 +50,8 @@
 </template>
 
 <script setup lang="ts">
-import { Calendar, Collection, Compass, FolderAdd, Menu, Plus, Reading, StarFilled } from '@element-plus/icons-vue'
+import { Calendar, Collection, Compass, FolderAdd, Menu, Notebook, Plus, StarFilled } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
 
 defineProps<{
@@ -64,6 +65,14 @@ defineEmits<{
   (event: 'select-favorite', value: string): void
   (event: 'create-favorite'): void
 }>()
+
+const router = useRouter()
+
+/** 笔记菜单项 → 笔记页 */
+const goNotes = () => router.push('/notes')
+
+/** 学习计划菜单项 → 计划页 */
+const goPlan = () => router.push('/plan')
 </script>
 
 <style scoped>
@@ -73,11 +82,11 @@ defineEmits<{
   padding: 20px 16px 20px 24px;
   overflow-y: auto;
   background: #ffffff;
-  border-right: 1px solid #e8ecf1;
+  border-right: 1px solid var(--cw-border);
 }
 
 .sidebar-card {
-  border: 1px solid #e8ecf1;
+  border: 1px solid var(--cw-border);
   border-radius: 10px;
   padding: 14px;
   margin-bottom: 18px;
@@ -88,18 +97,18 @@ defineEmits<{
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-weight: 600;
   margin-bottom: 6px;
 }
 
 .sidebar-card-title .el-icon {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .sidebar-card p {
   margin: 0;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
@@ -109,7 +118,7 @@ defineEmits<{
   gap: 4px;
   padding-bottom: 16px;
   margin-bottom: 16px;
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
 }
 
 .collections-section {
@@ -123,7 +132,7 @@ defineEmits<{
   padding: 0 4px 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
 }
 
 .menu-item {
@@ -132,19 +141,19 @@ defineEmits<{
   gap: 10px;
   padding: 8px 12px;
   border-radius: 6px;
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .menu-item:hover {
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
 }
 
 .menu-item.active {
-  background: #fff8f0;
-  color: #ffa116;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand);
   font-weight: 600;
 }
 

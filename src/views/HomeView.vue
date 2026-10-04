@@ -1,36 +1,6 @@
 <template>
   <div class="leetcode-clone">
-    <header class="navbar">
-      <div class="navbar-left">
-        <button class="logo" type="button" @click="refreshQuestions">
-          <span class="logo-icon">C</span>
-          <span class="logo-text">CodeWise</span>
-        </button>
-        <nav class="nav-menu">
-          <button type="button" class="nav-item active" @click="refreshQuestions">题库</button>
-          <button type="button" class="nav-item">竞赛</button>
-          <button type="button" class="nav-item" @click="goDiscuss">讨论</button>
-          <button type="button" class="nav-item" @click="goReview">复习</button>
-        </nav>
-      </div>
-
-      <div class="navbar-right">
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索题目..."
-          size="small"
-          :prefix-icon="Search"
-          class="search-input"
-          clearable
-          @input="handleSearch"
-          @clear="handleSearch"
-        />
-        <InboxButton />
-        <button class="avatar-entry" type="button" @click="goProfile" aria-label="进入个人主页">
-          <el-avatar :size="32" :src="profileAvatarUrl">{{ profileAvatarText }}</el-avatar>
-        </button>
-      </div>
-    </header>
+    <AppNavBar active="home" show-search v-model:search="searchKeyword" @search="handleSearch" />
 
     <div class="main-container">
       <aside class="left-panel">
@@ -96,8 +66,18 @@
           <div class="content-header">
             <div class="header-left">
               <h2>题目列表</h2>
+              <el-segmented
+                v-model="activeQuestionType"
+                :options="questionTypeOptions"
+                size="small"
+                class="question-type-switch"
+                @change="handleQuestionTypeChange"
+              />
             </div>
             <div class="header-right">
+              <el-button size="small" :icon="Download" class="import-button" @click="goLeetCodeImport">
+                导入力扣
+              </el-button>
               <el-select
                 v-model="statusFilter"
                 size="small"
@@ -125,10 +105,20 @@
               <el-table-column prop="title" label="题目" min-width="240">
                 <template #default="{ row }">
                   <div class="problem-title" :data-question-id="row.questionId">
+                    <span class="status-marker">
+                      <el-icon v-if="row.status === 1" class="solved-check" title="已通过"><Check /></el-icon>
+                    </span>
                     <span class="problem-id">{{ row.questionId }}</span>
                     <span class="problem-name">{{ row.title }}</span>
-                    <el-tag :type="getStatusTagType(row.status)" size="small" effect="light" round>
-                      {{ getStatusLabel(row.status) }}
+                    <el-tag
+                      v-for="tag in getQuestionTags(row.tags)"
+                      :key="tag"
+                      size="small"
+                      type="info"
+                      effect="plain"
+                      class="question-tag"
+                    >
+                      {{ tag }}
                     </el-tag>
                   </div>
                 </template>
@@ -158,7 +148,8 @@
             </div>
 
             <div v-if="!hasMore && problemList.length > 0" class="no-more">
-              已加载全部 {{ totalCount || problemList.length }} 道题目
+              已加载全部 {{ activeQuestionType === 'FUNCTION' ? problemList.length : (totalCount || problemList.length) }}
+              道{{ activeQuestionType === 'FUNCTION' ? '核心函数题' : '标准题' }}
             </div>
 
             <div v-if="!loading && problemList.length === 0" class="empty-state">
@@ -253,18 +244,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { Search, Collection, Star, Clock, Plus, Loading } from '@element-plus/icons-vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Collection, Star, Clock, Plus, Loading, Download, Check, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import questionApi from '@/api/questionApi'
 import reviewApi from '@/api/reviewApi'
 import userApi from '@/api/userApi'
-import { normalizeAvatarUrl } from '@/utils/avatar'
 import { useUserStore } from '@/stores/User'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
-import InboxButton from '@/components/notification/InboxButton.vue'
+import AppNavBar from '@/components/layout/AppNavBar.vue'
 import { navigateTopLevel } from '@/utils/navigation'
+
+defineOptions({ name: 'HomeView' })
 
 interface Question {
   questionId: number
@@ -276,6 +268,8 @@ interface Question {
   status: number
   tags?: string
 }
+
+type QuestionType = 'ACM' | 'FUNCTION'
 
 interface SubmitRecord {
   submitRecordId?: string | number
@@ -295,6 +289,12 @@ const userStore = useUserStore()
 const searchKeyword = ref('')
 const difficultyFilter = ref<number[]>([1, 2, 3])
 const statusFilter = ref<number | ''>('')
+const storedQuestionType = localStorage.getItem('homeQuestionType')
+const activeQuestionType = ref<QuestionType>(storedQuestionType === 'FUNCTION' ? 'FUNCTION' : 'ACM')
+const questionTypeOptions = [
+  { label: '标准输入输出', value: 'ACM' },
+  { label: '核心函数', value: 'FUNCTION' },
+]
 const problemList = ref<Question[]>([])
 const lastId = ref<number | null>(null)
 const hasMore = ref(true)
@@ -349,9 +349,6 @@ const streakDays = computed(() => {
   return streak
 })
 
-const profileAvatarUrl = computed(() => normalizeAvatarUrl(profileAvatar.value || localStorage.getItem('avatarUrl')))
-const profileAvatarText = computed(() => (profileName.value || 'CW').slice(0, 2).toUpperCase())
-
 const unwrapData = <T,>(res: any, fallback: T): T => {
   return (res?.data ?? res ?? fallback) as T
 }
@@ -402,19 +399,22 @@ const getDifficultyLabel = (difficulty: number) => {
   return map[difficulty] || '未知'
 }
 
-const getStatusLabel = (status: number) => {
-  const map: Record<number, string> = { 0: '未尝试', 1: '已通过', 2: '尝试过' }
-  return map[status] || '未知'
-}
-
-const getStatusTagType = (status: number) => {
-  const map = { 0: 'info', 1: 'success', 2: 'warning' } as const
-  return map[status as 0 | 1 | 2] || 'info'
+const getQuestionTags = (tags?: string) => {
+  if (!tags) return []
+  try {
+    const parsed = JSON.parse(tags)
+    if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean).slice(0, 2)
+  } catch {
+    // 普通逗号分隔标签直接向下处理。
+  }
+  return tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 2)
 }
 
 const getFavoriteDescription = (favorite: FavoriteCollection) => {
   return favorite.favoritesContent || favorite.favoritesType || '收藏题单'
 }
+
+const isUnauthorizedError = (error: unknown) => (error as any)?.response?.status === 401
 
 const buildQuestionParams = (isRefresh: boolean) => {
   const params: Record<string, any> = { pageSize: 20 }
@@ -431,8 +431,19 @@ const buildQuestionParams = (isRefresh: boolean) => {
   if (searchKeyword.value.trim()) {
     params.title = searchKeyword.value.trim()
   }
+  params.type = activeQuestionType.value
 
   return params
+}
+
+const handleQuestionTypeChange = () => {
+  localStorage.setItem('homeQuestionType', activeQuestionType.value)
+  lastId.value = null
+  hasMore.value = true
+  totalCount.value = 0
+  problemList.value = []
+  scrollContainer.value?.scrollTo({ top: 0 })
+  loadQuestions(true)
 }
 
 const loadQuestionTotal = async () => {
@@ -440,7 +451,7 @@ const loadQuestionTotal = async () => {
     const res: any = await questionApi.getTotal()
     totalCount.value = Number(unwrapData<number>(res, 0))
   } catch (error) {
-    console.warn('加载题目总数失败:', error)
+    if (!isUnauthorizedError(error)) console.warn('加载题目总数失败:', error)
   }
 }
 
@@ -474,8 +485,10 @@ const loadQuestions = async (isRefresh = false) => {
       totalCount.value = Number(data.total)
     }
   } catch (error) {
-    console.error('加载题目失败:', error)
-    ElMessage.error('加载题目失败')
+    if (!isUnauthorizedError(error)) {
+      console.error('加载题目失败:', error)
+      ElMessage.error('题目加载失败，请稍后重试')
+    }
   } finally {
     loading.value = false
   }
@@ -502,7 +515,7 @@ const loadHomeFavorites = async () => {
     const list = unwrapData<any[]>(res, [])
     homeFavorites.value = Array.isArray(list) ? list.map(mapFavorite) : []
   } catch (error) {
-    console.error('加载首页收藏夹失败:', error)
+    if (!isUnauthorizedError(error)) console.error('加载首页收藏夹失败:', error)
     homeFavorites.value = []
   } finally {
     favoritesLoading.value = false
@@ -536,7 +549,7 @@ const loadSubmitStats = async () => {
     const payload = unwrapData<any>(res, {})
     submitRecords.value = Array.isArray(payload.records) ? payload.records : []
   } catch (error) {
-    console.warn('加载提交统计失败:', error)
+    if (!isUnauthorizedError(error)) console.warn('加载提交统计失败:', error)
     submitRecords.value = []
   } finally {
     generateCalendar()
@@ -621,15 +634,13 @@ const restoreScrollPosition = () => {
 }
 
 const scrollToPosition = (scrollTop: number, questionId: string | null) => {
-  scrollContainer.value?.scrollTo({ top: scrollTop, behavior: 'smooth' })
+  scrollContainer.value?.scrollTo({ top: scrollTop, behavior: 'auto' })
 
   if (!questionId) return
   const targetEl = document.querySelector(`[data-question-id="${questionId}"]`)
   if (!targetEl) return
 
-  targetEl.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  targetEl.classList.add('highlight-item')
-  window.setTimeout(() => targetEl.classList.remove('highlight-item'), 3000)
+  targetEl.scrollIntoView({ block: 'center', behavior: 'auto' })
 }
 
 const handleScroll = () => {
@@ -656,19 +667,22 @@ const goToDetail = (row: Question) => {
 }
 
 const openFavorites = (favoriteId?: string) => {
-  router.push({
+  navigateTopLevel(router, {
     path: '/favorites',
     query: favoriteId ? { favoriteId } : undefined,
   })
 }
 
 const goReview = () => navigateTopLevel(router, '/review')
-const goDiscuss = () => navigateTopLevel(router, '/discuss')
-const goProfile = () => navigateTopLevel(router, '/profile')
+const goLeetCodeImport = () => router.push('/questions/import/leetcode')
 
 onMounted(async () => {
   await Promise.all([loadQuestionTotal(), loadQuestions(true), loadHomeFavorites(), loadUserProfile(), loadSubmitStats()])
   window.setTimeout(restoreScrollPosition, 30)
+})
+
+onBeforeUnmount(() => {
+  if (searchTimer) window.clearTimeout(searchTimer)
 })
 </script>
 
@@ -683,9 +697,9 @@ onMounted(async () => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f6f7f9;
-  color: #191c1e;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--cw-bg-page);
+  color: var(--cw-text-1);
+  font-family: var(--cw-font-sans);
   overflow: hidden;
 }
 
@@ -697,7 +711,7 @@ onMounted(async () => {
   justify-content: space-between;
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
 }
 
 .navbar-left,
@@ -728,14 +742,14 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 18px;
   font-weight: 700;
 }
 
 .logo-icon,
 .nav-item.active {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .logo-icon {
@@ -749,7 +763,7 @@ onMounted(async () => {
 
 .nav-item {
   padding: 7px 15px;
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
@@ -757,8 +771,8 @@ onMounted(async () => {
 
 .nav-item:hover,
 .nav-item.active {
-  background: #fff8f0;
-  color: #ffa116;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand);
 }
 
 .search-input {
@@ -767,7 +781,7 @@ onMounted(async () => {
 
 .search-input :deep(.el-input__wrapper) {
   border-radius: 20px;
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
 }
 
 .avatar-entry {
@@ -782,7 +796,7 @@ onMounted(async () => {
 }
 
 .avatar-entry:hover {
-  border-color: #ffa116;
+  border-color: var(--cw-brand);
   box-shadow: 0 6px 14px rgba(255, 161, 22, 0.18);
   transform: translateY(-1px);
 }
@@ -803,7 +817,7 @@ onMounted(async () => {
 .home-overview,
 .question-panel {
   background: #ffffff;
-  border: 1px solid #e8ecf1;
+  border: 1px solid var(--cw-border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
@@ -820,7 +834,7 @@ onMounted(async () => {
 .section-title {
   margin-bottom: 10px;
   padding-left: 4px;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 12px;
   font-weight: 600;
 }
@@ -833,7 +847,7 @@ onMounted(async () => {
   align-items: center;
   gap: 10px;
   border-radius: 6px;
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   font-size: 14px;
   text-align: left;
   transition: background 0.18s ease, color 0.18s ease;
@@ -841,8 +855,8 @@ onMounted(async () => {
 
 .menu-item:hover,
 .menu-item.active {
-  background: #fff8f0;
-  color: #d98200;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
 }
 
 .menu-item.active {
@@ -854,7 +868,7 @@ onMounted(async () => {
   padding: 0 8px;
   border-radius: 12px;
   background: #f2f4f7;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 11px;
 }
 
@@ -868,7 +882,7 @@ onMounted(async () => {
 
 .menu-empty {
   padding: 8px 12px;
-  color: #b0b0b0;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
@@ -877,13 +891,13 @@ onMounted(async () => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #ffa116;
+  background: var(--cw-brand);
   flex-shrink: 0;
 }
 
 .create-btn {
-  border: 1px dashed #ffa116;
-  color: #ffa116;
+  border: 1px dashed var(--cw-brand);
+  color: var(--cw-brand);
   font-weight: 500;
 }
 
@@ -927,15 +941,15 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  background: #fff8f0;
-  color: #b86b00;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
   font-size: 13px;
   font-weight: 600;
 }
 
 .overview-copy h1 {
   margin: 16px 0 10px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 30px;
   line-height: 1.22;
 }
@@ -963,7 +977,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  border-bottom: 1px solid #edf0f3;
+  border-bottom: 1px solid var(--cw-bg-subtle);
 }
 
 .header-left {
@@ -974,21 +988,55 @@ onMounted(async () => {
 
 .header-left h2 {
   margin: 0;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 18px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.question-type-switch {
+  --el-segmented-item-selected-bg-color: #ffffff;
+  --el-segmented-item-selected-color: var(--cw-brand-dark);
+  padding: 3px;
+  border: 1px solid var(--cw-bg-subtle);
+  background: var(--cw-bg-page);
+}
+
+.question-type-switch :deep(.el-segmented__item) {
+  min-height: 28px;
+  padding: 0 11px;
+  font-size: 12px;
 }
 
 .total-count {
   padding: 3px 10px;
   border-radius: 999px;
-  background: #f5f7fa;
-  color: #8c8c8c;
+  background: var(--cw-bg-page);
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
 .filter-select {
   width: 130px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.import-button {
+  color: var(--cw-brand-dark);
+  border-color: var(--cw-brand-border);
+  background: var(--cw-brand-soft);
+}
+
+.import-button:hover,
+.import-button:focus {
+  color: var(--cw-brand-dark);
+  border-color: var(--cw-brand);
+  background: var(--cw-brand-soft);
 }
 
 .table-wrapper {
@@ -1007,14 +1055,30 @@ onMounted(async () => {
 .table-wrapper::-webkit-scrollbar-thumb,
 .left-panel::-webkit-scrollbar-thumb,
 .right-panel::-webkit-scrollbar-thumb {
-  background: #e8ecf1;
+  background: var(--cw-border);
   border-radius: 4px;
 }
 
 .problem-title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 9px;
+  min-width: 0;
+}
+
+.status-marker {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.solved-check {
+  color: var(--cw-success);
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .problem-id {
@@ -1024,8 +1088,18 @@ onMounted(async () => {
 }
 
 .problem-name {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.question-tag {
+  flex: 0 0 auto;
+  --el-tag-bg-color: var(--cw-bg-page);
+  --el-tag-border-color: #e8ebef;
+  --el-tag-text-color: #777f89;
 }
 
 .loading-more,
@@ -1036,13 +1110,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
 .no-more {
   padding: 20px 0;
-  color: #b0b0b0;
+  color: var(--cw-text-3);
   font-size: 13px;
   text-align: center;
 }
@@ -1061,7 +1135,7 @@ onMounted(async () => {
 .stats-card {
   padding: 16px 18px;
   background: #ffffff;
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
 }
 
 .stats-card:last-child {
@@ -1076,21 +1150,21 @@ onMounted(async () => {
 }
 
 .stats-title {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 14px;
   font-weight: 600;
 }
 
 .stats-month,
 .favorite-desc {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 12px;
 }
 
 .view-all-btn {
   height: auto;
   padding: 0;
-  color: #ffa116;
+  color: var(--cw-brand);
   font-size: 12px;
 }
 
@@ -1103,9 +1177,9 @@ onMounted(async () => {
 .favorite-item {
   width: 100%;
   padding: 10px;
-  border: 1px solid #edf0f3;
+  border: 1px solid var(--cw-bg-subtle);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--cw-bg-page);
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1115,7 +1189,7 @@ onMounted(async () => {
 }
 
 .favorite-item:hover {
-  background: #fffdf9;
+  background: var(--cw-brand-soft);
   border-color: #ffe1b8;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
   transform: translateY(-2px);
@@ -1137,7 +1211,7 @@ onMounted(async () => {
 }
 
 .favorite-name {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 13px;
   font-weight: 600;
 }
@@ -1146,8 +1220,8 @@ onMounted(async () => {
   min-width: 26px;
   height: 22px;
   border-radius: 999px;
-  background: #fff8f0;
-  color: #d98200;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1168,7 +1242,7 @@ onMounted(async () => {
 
 .weekday {
   padding: 2px 0;
-  color: #b0b0b0;
+  color: var(--cw-text-3);
   font-size: 10px;
   text-align: center;
 }
@@ -1179,7 +1253,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   border-radius: 5px;
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   font-size: 11px;
 }
 
@@ -1188,20 +1262,20 @@ onMounted(async () => {
 }
 
 .calendar-day.has-submit {
-  background: #fff8f0;
-  color: #ffa116;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand);
   font-weight: 600;
 }
 
 .calendar-day.today {
-  border: 2px solid #ffa116;
+  border: 2px solid var(--cw-brand);
   font-weight: 700;
 }
 
 .stats-footer {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #e8ecf1;
+  border-top: 1px solid var(--cw-border);
   display: flex;
   justify-content: space-around;
 }
@@ -1212,13 +1286,13 @@ onMounted(async () => {
 
 .stat-label {
   display: block;
-  color: #b0b0b0;
+  color: var(--cw-text-3);
   font-size: 10px;
 }
 
 .stat-value {
   display: block;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 15px;
   font-weight: 600;
 }
@@ -1227,7 +1301,7 @@ onMounted(async () => {
   padding: 10px 0;
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
 }
 
 .quick-stats .stat-row:last-child {
@@ -1235,17 +1309,17 @@ onMounted(async () => {
 }
 
 .quick-stats .stat-label {
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   font-size: 13px;
 }
 
 .quick-stats .stat-value {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 14px;
 }
 
 :deep(.el-table) {
-  --el-table-border-color: #edf0f3;
+  --el-table-border-color: var(--cw-bg-subtle);
   --el-table-header-bg-color: #f8f9fa;
   font-size: 14px;
 }
@@ -1274,22 +1348,16 @@ onMounted(async () => {
 }
 
 :deep(.el-table tbody tr:hover td.el-table__cell) {
-  background: #fffdf9 !important;
+  background: var(--cw-brand-soft) !important;
   box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05);
 }
 
 :deep(.el-table tbody tr:hover .problem-name) {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 :deep(.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell) {
-  background-color: #fafbfc;
-}
-
-.highlight-item {
-  background: #fff8f0 !important;
-  border-left: 3px solid #ffa116;
-  transition: all 0.3s;
+  background-color: var(--cw-bg-page);
 }
 
 @media (max-width: 1280px) {
@@ -1332,6 +1400,20 @@ onMounted(async () => {
     align-items: flex-start;
     gap: 12px;
     flex-direction: column;
+  }
+
+  .header-left {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .question-type-switch {
+    max-width: 100%;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

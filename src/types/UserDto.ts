@@ -8,7 +8,8 @@ export default interface userDto {
   nickName: string
   avatarUrl: string
   birthday: string // LocalDate 转换为 string
-  roleId: number
+  /** 角色 ID，2 为管理员。刷新页面后可能尚未加载，故为可选。 */
+  roleId?: number
   status: number
   openId: string
   totalSubmit: number

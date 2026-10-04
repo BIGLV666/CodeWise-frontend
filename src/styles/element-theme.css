@@ -1,0 +1,102 @@
+/**
+ * Element Plus 主题改写。
+ *
+ * 默认主题色是 #409eff 蓝，与品牌橙并存导致全站"蓝橙打架"。
+ * 这里通过 EP 官方 CSS 变量把主色、文本、边框、圆角、字体全部对齐设计令牌。
+ * 必须在 element-plus/dist/index.css 之后引入才能生效。
+ */
+:root {
+  /* 主色：橙色系阶（hover/light 档位由 EP 组件直接引用） */
+  --el-color-primary: var(--cw-brand);
+  --el-color-primary-dark-2: var(--cw-brand-dark);
+  --el-color-primary-light-3: #ffb23e;
+  --el-color-primary-light-5: #ffc670;
+  --el-color-primary-light-7: #ffdba3;
+  --el-color-primary-light-8: #ffe8c4;
+  --el-color-primary-light-9: var(--cw-brand-soft);
+
+  /* 语义色对齐令牌 */
+  --el-color-success: var(--cw-success);
+  --el-color-success-light-3: #85ce61;
+  --el-color-success-light-5: #a4da89;
+  --el-color-success-light-7: #c2e7b0;
+  --el-color-success-light-8: #d1edc4;
+  --el-color-success-light-9: #e1f3d8;
+  --el-color-success-dark-2: #529b2e;
+  --el-color-warning: var(--cw-warning);
+  --el-color-warning-light-3: #ebb563;
+  --el-color-warning-light-5: #f0c78a;
+  --el-color-warning-light-7: #f5dab1;
+  --el-color-warning-light-8: #f8e3c5;
+  --el-color-warning-light-9: #faecd8;
+  --el-color-warning-dark-2: #b88230;
+  --el-color-danger: var(--cw-danger);
+  --el-color-danger-light-3: #f78989;
+  --el-color-danger-light-5: #f9a7a7;
+  --el-color-danger-light-7: #fbc4c4;
+  --el-color-danger-light-8: #fdd3d3;
+  --el-color-danger-light-9: #fde2e2;
+  --el-color-danger-dark-2: #c45656;
+  --el-color-error: var(--cw-danger);
+  --el-color-error-light-3: #f78989;
+  --el-color-error-light-5: #f9a7a7;
+  --el-color-error-light-7: #fbc4c4;
+  --el-color-error-light-8: #fdd3d3;
+  --el-color-error-light-9: #fde2e2;
+  --el-color-error-dark-2: #c45656;
+  --el-color-info: var(--cw-info);
+  --el-color-info-light-3: #a6a9ad;
+  --el-color-info-light-5: #b1b3b8;
+  --el-color-info-light-7: #c8c9cc;
+  --el-color-info-light-8: #d3d4d6;
+  --el-color-info-light-9: #e9e9eb;
+  --el-color-info-dark-2: #73767a;
+
+  /* 文本与背景 */
+  --el-text-color-primary: var(--cw-text-1);
+  --el-text-color-regular: var(--cw-text-2);
+  --el-text-color-secondary: var(--cw-text-3);
+  --el-text-color-placeholder: var(--cw-text-faint);
+  --el-text-color-disabled: var(--cw-text-faint);
+  --el-bg-color: var(--cw-bg-card);
+  --el-bg-color-page: var(--cw-bg-page);
+  --el-bg-color-overlay: var(--cw-bg-card);
+  --el-fill-color: var(--cw-bg-page);
+  --el-fill-color-light: var(--cw-bg-page);
+  --el-fill-color-lighter: #f8fafc;
+  --el-fill-color-extra-light: #fafbfc;
+  --el-fill-color-blank: var(--cw-bg-card);
+
+  /* 边框 */
+  --el-border-color: var(--cw-border-strong);
+  --el-border-color-light: var(--cw-border);
+  --el-border-color-lighter: var(--cw-border);
+  --el-border-color-extra-light: #f0f2f5;
+  --el-border-color-hover: var(--cw-text-faint);
+
+  /* 圆角与字体 */
+  --el-border-radius-base: var(--cw-radius-sm);
+  --el-border-radius-small: 4px;
+  --el-border-radius-round: 20px;
+  --el-font-family: var(--cw-font-sans);
+
+  /* 阴影 */
+  --el-box-shadow: var(--cw-shadow-pop);
+  --el-box-shadow-light: var(--cw-shadow-card);
+  --el-box-shadow-lighter: 0 1px 4px rgba(26, 26, 46, 0.06);
+  --el-box-shadow-dark: 0 12px 32px rgba(26, 26, 46, 0.16);
+}
+
+/* 主色按钮上白字对比度不足，hover 用深橙而不是浅橙 */
+.el-button--primary:hover,
+.el-button--primary:focus-visible {
+  --el-button-hover-bg-color: var(--cw-brand-dark);
+  --el-button-hover-border-color: var(--cw-brand-dark);
+}
+
+/* 表头与斑马纹统一用页面底色系 */
+.el-table th.el-table__cell {
+  background: var(--cw-bg-page);
+  color: var(--cw-text-2);
+  font-weight: 600;
+}

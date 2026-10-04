@@ -23,6 +23,8 @@ export interface DebugTestCase {
   expectedOutput: string
   result?: JudgeReturnRecordDto | null
   passed?: boolean | null
+  isSample?: boolean
+  provided?: boolean
 }
 
 export interface JudgeReturnRecordDto {

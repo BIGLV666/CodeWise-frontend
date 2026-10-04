@@ -1,10 +1,9 @@
-﻿﻿﻿﻿﻿﻿<template>
+<template>
   <div class="profile-view">
     <header class="navbar">
       <div class="navbar-left">
         <button class="logo" type="button" @click="goHome">
-          <span class="logo-icon">C</span>
-          <span class="logo-text">CodeWise</span>
+          <BrandLogo :size="28" />
         </button>
         <nav class="nav-menu">
           <button class="nav-item" type="button" @click="goHome">题库</button>
@@ -45,6 +44,8 @@
                   <el-dropdown-item command="avatar">更换头像</el-dropdown-item>
                   <el-dropdown-item command="profile">编辑资料</el-dropdown-item>
                   <el-dropdown-item command="password">修改密码</el-dropdown-item>
+                  <el-dropdown-item command="freeze" divided>冻结账号</el-dropdown-item>
+                  <el-dropdown-item command="delete">注销账号</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -60,10 +61,12 @@
 
         <section class="side-card">
           <h2>个人导航</h2>
-          <button class="side-link active" type="button">总览</button>
+          <button class="side-link" :class="{ active: profileSection === 'overview' }" type="button" @click="selectProfileSection('overview')">总览</button>
           <button class="side-link" type="button" @click="goHome">题库</button>
           <button class="side-link" type="button" @click="goReview">复习计划</button>
           <button class="side-link" type="button" @click="goFavorites">收藏夹</button>
+          <button class="side-link" :class="{ active: profileSection === 'content' }" type="button" @click="selectProfileSection('content')">我的帖子</button>
+          <button class="side-link" :class="{ active: profileSection === 'ai' }" type="button" @click="selectProfileSection('ai')">API Key 管理</button>
         </section>
 
         <section class="side-card">
@@ -166,6 +169,106 @@
             </button>
           </div>
         </section>
+
+        <section v-if="profileSection === 'content'" class="activity-card my-content-card">
+          <div class="section-header content-header">
+            <div>
+              <h2>我的内容</h2>
+              <span>查看帖子、题解与评论的发布及审核状态</span>
+            </div>
+            <div class="content-header-actions">
+              <el-button size="small" @click="openAppealHistory">我的申诉</el-button>
+              <el-segmented v-model="myContentType" :options="myContentOptions" size="small" @change="loadMyContent(true)" />
+            </div>
+          </div>
+
+          <div v-if="myContentLoading && myContent.length === 0" class="state-line">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>加载我的内容...</span>
+          </div>
+          <el-empty v-else-if="myContent.length === 0" description="还没有发布过此类内容" />
+          <div v-else class="my-content-list">
+            <article v-for="item in myContent" :key="`${item.type}-${item.targetId}`" class="my-content-item">
+              <div class="my-content-main">
+                <div class="my-content-title-line">
+                  <strong>{{ item.title || contentExcerpt(item.content) }}</strong>
+                  <el-tag :type="contentStatus(item.status).type" size="small" effect="plain">
+                    {{ contentStatus(item.status).label }}
+                  </el-tag>
+                </div>
+                <p v-if="item.title">{{ contentExcerpt(item.content) }}</p>
+                
+                <!-- 显示拒绝理由 -->
+                <div v-if="item.status === 2 && item.rejectReason" class="reject-reason">
+                  <el-icon><WarningFilled /></el-icon>
+                  <span>拒绝理由：{{ item.rejectReason }}</span>
+                </div>
+                
+                <small>{{ formatDate(item.createTime) }}</small>
+              </div>
+              
+              <div class="my-content-actions">
+                <!-- 所有内容都可以查看 -->
+                <el-button link type="primary" @click="viewMyContent(item)">查看</el-button>
+                
+                <!-- 帖子和题解可以编辑 -->
+                <el-button 
+                  v-if="(item.type === 'POST' || item.type === 'SOLUTION') && item.status !== 0" 
+                  link 
+                  type="primary" 
+                  @click="editMyContent(item)"
+                >
+                  编辑
+                </el-button>
+                
+                <!-- 被拒绝的内容可以申诉 -->
+                <el-button 
+                  v-if="item.status === 2" 
+                  link 
+                  type="warning" 
+                  @click="openAppealDialog(item)"
+                >
+                  申诉
+                </el-button>
+              </div>
+            </article>
+          </div>
+          <div v-if="myContentHasNext" class="my-content-more">
+            <el-button text :loading="myContentLoading" @click="loadMyContent(false)">加载更多</el-button>
+          </div>
+        </section>
+
+        <section v-if="profileSection === 'ai'" id="ai-model-settings" class="ai-settings-card">
+          <div class="section-header">
+            <div>
+              <h2>AI 模型</h2>
+              <span>管理你在题目页使用的自定义模型</span>
+            </div>
+            <el-button type="primary" plain :icon="Plus" @click="openCreateModelDialog">添加模型</el-button>
+          </div>
+
+          <el-alert v-if="aiConfigError" :title="aiConfigError" type="warning" :closable="false" show-icon class="load-alert" />
+          <div v-if="aiConfigLoading" class="state-line">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>加载模型配置...</span>
+          </div>
+          <el-empty v-else-if="aiConfigs.length === 0" description="还没有自定义模型" />
+          <div v-else class="ai-config-list">
+            <article v-for="config in aiConfigs" :key="config.userConfigId" class="ai-config-item">
+              <div class="config-icon"><el-icon><Cpu /></el-icon></div>
+              <div class="config-main">
+                <strong>{{ config.groupName }}</strong>
+                <span>{{ config.modelNames.join('、') }}</span>
+              </div>
+              <div class="config-actions">
+                <el-button link type="primary" :icon="Edit" @click="openEditModelDialog(config.userConfigId)">
+                  修改
+                </el-button>
+                <el-button link type="danger" :icon="Delete" @click="removeModelConfig(config)">删除</el-button>
+              </div>
+            </article>
+          </div>
+        </section>
       </section>
     </main>
 
@@ -201,31 +304,176 @@
         </div>
       </template>
     </el-dialog>
+
+    <AiModelConfigDialog
+      v-model="modelDialogVisible"
+      :mode="modelDialogMode"
+      :config-id="editingConfigId"
+      @saved="loadAiConfigs"
+    />
+
+    <!-- 申诉弹窗 -->
+    <el-dialog v-model="appealDialogVisible" title="提交申诉" width="500px">
+      <el-form label-position="top">
+        <el-form-item label="申诉内容">
+          <div class="appeal-content-preview">
+            <strong>{{ appealTarget?.title || contentExcerpt(appealTarget?.content) }}</strong>
+            <el-tag size="small" type="danger">已拒绝</el-tag>
+          </div>
+        </el-form-item>
+        
+        <el-form-item label="拒绝理由">
+          <el-alert type="error" :closable="false" show-icon>
+            {{ appealTarget?.rejectReason || '无' }}
+          </el-alert>
+        </el-form-item>
+        
+        <el-form-item label="申诉理由" required>
+          <el-input
+            v-model="appealForm.reason"
+            type="textarea"
+            :rows="5"
+            maxlength="500"
+            show-word-limit
+            placeholder="请说明您认为此内容不应被拒绝的理由..."
+          />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <el-button @click="appealDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="appealSubmitting" @click="submitAppeal">提交申诉</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 修改密码弹窗 -->
+    <el-dialog v-model="passwordDialogVisible" title="修改密码" width="420px" class="profile-dialog">
+      <el-form label-position="top">
+        <el-form-item label="当前密码" required>
+          <el-input v-model="passwordForm.oldPassword" type="password" show-password placeholder="输入当前密码" />
+        </el-form-item>
+        <el-form-item label="新密码" required>
+          <el-input v-model="passwordForm.newPassword" type="password" show-password maxlength="64" placeholder="至少 6 位" />
+        </el-form-item>
+        <el-form-item label="确认新密码" required>
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password placeholder="再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="passwordDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="passwordSubmitting" @click="submitPassword">确认修改</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 申诉历史弹窗 -->
+    <el-dialog v-model="appealHistoryVisible" title="我的申诉" width="560px">
+      <div v-if="appealHistoryLoading && appealHistory.length === 0" class="state-line">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>加载申诉历史...</span>
+      </div>
+      <el-empty v-else-if="appealHistory.length === 0" description="还没有申诉记录" />
+      <template v-else>
+        <div class="appeal-history-list">
+          <article
+            v-for="item in appealHistory"
+            :key="item.appealId"
+            class="appeal-history-item"
+            @click="openAppealDetail(item.appealId)"
+          >
+            <div class="appeal-history-head">
+              <el-tag size="small" :type="appealStatusTag(item.status).type">{{ appealStatusTag(item.status).label }}</el-tag>
+              <strong>{{ item.title || `${item.rootType} #${item.rootId}` }}</strong>
+              <small>{{ formatDate(item.createTime) }}</small>
+            </div>
+            <p class="appeal-history-reason">{{ item.reason }}</p>
+          </article>
+        </div>
+        <div v-if="appealHistoryHasMore" class="my-content-more">
+          <el-button text :loading="appealHistoryLoading" @click="loadAppealHistory(false)">加载更多</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 申诉详情弹窗 -->
+    <el-dialog v-model="appealDetailVisible" title="申诉详情" width="480px">
+      <div v-if="appealDetailLoading" class="state-line">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>加载申诉详情...</span>
+      </div>
+      <el-descriptions v-else-if="appealDetail" :column="1" border>
+        <el-descriptions-item label="状态">
+          <el-tag size="small" :type="appealStatusTag(appealDetail.status).type">{{ appealStatusTag(appealDetail.status).label }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="相关内容">
+          {{ appealDetail.title || `${appealDetail.rootType} #${appealDetail.rootId}` }}
+        </el-descriptions-item>
+        <el-descriptions-item label="申诉理由">{{ appealDetail.reason }}</el-descriptions-item>
+        <el-descriptions-item label="管理员回复">{{ appealDetail.takeDownReason || '暂无回复' }}</el-descriptions-item>
+        <el-descriptions-item label="提交时间">{{ formatDate(appealDetail.createTime) }}</el-descriptions-item>
+        <el-descriptions-item v-if="appealDetail.updateTime" label="更新时间">{{ formatDate(appealDetail.updateTime) }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
+    <!-- 冻结账号弹窗 -->
+    <el-dialog v-model="freezeDialogVisible" title="冻结账号" width="420px" class="profile-dialog">
+      <el-alert
+        title="冻结后账号将无法登录，可随时联系管理员申诉解封。"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="freeze-alert"
+      />
+      <el-form label-position="top">
+        <el-form-item label="冻结原因" required>
+          <el-input v-model="freezeForm.reason" maxlength="120" show-word-limit placeholder="例如：暂停使用一段时间" />
+        </el-form-item>
+        <el-form-item label="登录密码" required>
+          <el-input v-model="freezeForm.password" type="password" show-password placeholder="验证身份" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="freezeDialogVisible = false">取消</el-button>
+          <el-button type="danger" :loading="freezeSubmitting" @click="submitFreeze">确认冻结</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/User'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowDown,
   CircleCheck,
   CircleClose,
+  Cpu,
+  Delete,
+  Edit,
   Loading,
   Location,
+  Plus,
   Refresh,
   Star,
   Trophy,
+  WarningFilled,
 } from '@element-plus/icons-vue'
 import userApi from '@/api/userApi'
 import questionApi from '@/api/questionApi'
 import reviewApi from '@/api/reviewApi'
+import aiApi, { type UserAiConfigSummary } from '@/api/aiApi'
+import communityApi, { type MyContentItem, type MyContentType } from '@/api/communityApi'
+import appealApi from '@/api/appealApi'
+import adminAppealApi, { type AppealItem } from '@/api/adminAppealApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import type UserDto from '@/types/UserDto'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
 import InboxButton from '@/components/notification/InboxButton.vue'
+import AiModelConfigDialog from '@/components/ai/AiModelConfigDialog.vue'
 import { navigateTopLevel } from '@/utils/navigation'
 
 interface SubmitRecord {
@@ -239,8 +487,10 @@ interface SubmitRecord {
 }
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const loading = ref(false)
+const profileSection = ref<'overview' | 'content' | 'ai'>('overview')
 const profileSaving = ref(false)
 const avatarUploading = ref(false)
 const profileDialogVisible = ref(false)
@@ -248,6 +498,22 @@ const avatarInputRef = ref<HTMLInputElement | null>(null)
 const userInfo = ref<Partial<UserDto>>({})
 const submitRecords = ref<SubmitRecord[]>([])
 const favorites = ref<FavoriteCollection[]>([])
+const aiConfigs = ref<UserAiConfigSummary[]>([])
+const aiConfigLoading = ref(false)
+const aiConfigError = ref('')
+const myContent = ref<MyContentItem[]>([])
+const myContentType = ref<MyContentType>('POST')
+const myContentLoading = ref(false)
+const myContentNextCursor = ref<string | null>(null)
+const myContentHasNext = ref(false)
+const myContentOptions = [
+  { label: '帖子', value: 'POST' },
+  { label: '题解', value: 'SOLUTION' },
+  { label: '评论', value: 'COMMENT' },
+]
+const modelDialogVisible = ref(false)
+const modelDialogMode = ref<'create' | 'edit'>('create')
+const editingConfigId = ref<number | null>(null)
 const profileForm = reactive({
   nickName: '',
   bio: '',
@@ -282,6 +548,327 @@ const ringStyle = computed(() => {
   }
 })
 const recentRecords = computed(() => submitRecords.value.slice(0, 6))
+
+const contentStatus = (status: number) => {
+  if (status === 0) return { label: '待审核', type: 'warning' as const }
+  if (status === 1) return { label: '已发布', type: 'success' as const }
+  if (status === 2) return { label: '未通过 / 已下架', type: 'danger' as const }
+  return { label: '未知', type: 'info' as const }
+}
+
+const contentExcerpt = (content?: string) => {
+  const text = String(content || '').replace(/\s+/g, ' ').trim()
+  if (!text) return '（无正文）'
+  return text.length > 100 ? `${text.slice(0, 100)}…` : text
+}
+
+const loadMyContent = async (reset = false) => {
+  if (myContentLoading.value) return
+  myContentLoading.value = true
+  if (reset) {
+    myContent.value = []
+    myContentNextCursor.value = null
+    myContentHasNext.value = false
+  }
+  const type = myContentType.value
+  try {
+    const response: any = await communityApi.listMyContent({
+      type,
+      pageSize: 10,
+      lastId: reset ? null : myContentNextCursor.value,
+    })
+    const page = response?.data ?? response ?? {}
+    if (type !== myContentType.value) return
+    const list = Array.isArray(page.records) ? page.records : (Array.isArray(page.list) ? page.list : [])
+    const normalized = list.map((item: any): MyContentItem => ({
+      ...item,
+      targetId: String(item.id || item.targetId),
+      rootId: item.rootId == null ? null : String(item.rootId),
+      questionId: item.questionId == null ? null : String(item.questionId),
+      status: Number(item.status),
+      rejectReason: item.checkReason || item.rejectReason,
+    }))
+    myContent.value = reset ? normalized : [...myContent.value, ...normalized]
+    
+    // 计算下一个游标
+    if (list.length > 0) {
+      const lastItem = list[list.length - 1]
+      myContentNextCursor.value = String(page.nextCursor ?? lastItem.id ?? lastItem.targetId)
+    }
+    
+    myContentHasNext.value = Boolean(page.hasNext ?? page.hasMore)
+  } catch (error) {
+    console.error('我的内容加载失败:', error)
+  } finally {
+    myContentLoading.value = false
+  }
+}
+
+const openMyContent = (item: MyContentItem) => {
+  if (item.type === 'POST') {
+    router.push(`/discuss/${item.targetId}`)
+    return
+  }
+  if (item.type === 'SOLUTION' && item.questionId) {
+    router.push({
+      path: '/questiondetailview',
+      query: { questionId: item.questionId, tab: 'solution', solutionId: item.targetId },
+    })
+    return
+  }
+  if (item.type === 'COMMENT' && item.rootId) {
+    if (item.rootType === 'SOLUTION') {
+      router.push({
+        path: '/questiondetailview',
+        query: { questionId: item.questionId || undefined, tab: 'solution', solutionId: item.rootId },
+      })
+    } else {
+      router.push({ path: `/discuss/${item.rootId}`, query: { commentId: item.targetId } })
+    }
+  }
+}
+
+// 申诉相关状态
+const appealDialogVisible = ref(false)
+const appealTarget = ref<MyContentItem | null>(null)
+const appealForm = ref({ reason: '' })
+const appealSubmitting = ref(false)
+
+// 修改密码相关状态
+const passwordDialogVisible = ref(false)
+const passwordSubmitting = ref(false)
+const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+
+// 申诉历史相关状态
+const appealHistoryVisible = ref(false)
+const appealHistoryLoading = ref(false)
+const appealHistory = ref<AppealItem[]>([])
+const appealHistoryLastId = ref<string | number | null>(null)
+const appealHistoryHasMore = ref(false)
+const appealDetailVisible = ref(false)
+const appealDetailLoading = ref(false)
+const appealDetail = ref<AppealItem | null>(null)
+
+/** 申诉状态到标签文案/颜色的映射（与后端 0-待审核 1-拒绝 2-恢复 对应）。 */
+function appealStatusTag(status: number) {
+  if (status === 0) return { label: '待审核', type: 'warning' as const }
+  if (status === 1) return { label: '已拒绝', type: 'danger' as const }
+  return { label: '已恢复', type: 'success' as const }
+}
+
+function openPasswordDialog() {
+  passwordForm.oldPassword = ''
+  passwordForm.newPassword = ''
+  passwordForm.confirmPassword = ''
+  passwordDialogVisible.value = true
+}
+
+// 冻结/注销账号相关状态
+const freezeDialogVisible = ref(false)
+const freezeSubmitting = ref(false)
+const freezeForm = reactive({ reason: '', password: '' })
+
+function openFreezeDialog() {
+  freezeForm.reason = ''
+  freezeForm.password = ''
+  freezeDialogVisible.value = true
+}
+
+async function submitFreeze() {
+  if (freezeSubmitting.value) return
+  if (!freezeForm.reason.trim()) {
+    ElMessage.warning('请填写冻结原因')
+    return
+  }
+  if (!freezeForm.password) {
+    ElMessage.warning('请输入登录密码验证身份')
+    return
+  }
+  try {
+    await ElMessageBox.confirm('冻结后账号将无法登录，确认继续？', '冻结账号', {
+      confirmButtonText: '确认冻结',
+      cancelButtonText: '取消',
+      confirmButtonClass: 'el-button--danger',
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  freezeSubmitting.value = true
+  try {
+    await userApi.freezeAccount(freezeForm.reason.trim(), freezeForm.password)
+    ElMessage.success('账号已冻结')
+    freezeDialogVisible.value = false
+    userStore.logout()
+    router.push('/login')
+  } catch {
+    // 失败提示由 axios 响应拦截器统一弹出
+  } finally {
+    freezeSubmitting.value = false
+  }
+}
+
+async function deleteAccount() {
+  try {
+    await ElMessageBox.prompt(
+      '注销后账号将无法恢复，请输入「注销」确认操作。',
+      '注销账号',
+      {
+        confirmButtonText: '确认注销',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+        inputPattern: /^注销$/,
+        inputErrorMessage: '请输入「注销」以确认',
+        type: 'warning',
+      },
+    )
+  } catch {
+    return
+  }
+  try {
+    await userApi.deleteAccount()
+    ElMessage.success('账号已注销')
+    userStore.logout()
+    router.push('/login')
+  } catch {
+    // 失败提示由 axios 响应拦截器统一弹出
+  }
+}
+
+async function submitPassword() {
+  if (passwordSubmitting.value) return
+  if (!passwordForm.oldPassword || !passwordForm.newPassword) {
+    ElMessage.warning('请填写当前密码和新密码')
+    return
+  }
+  if (passwordForm.newPassword.length < 6) {
+    ElMessage.warning('新密码至少 6 位')
+    return
+  }
+  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    ElMessage.warning('两次输入的新密码不一致')
+    return
+  }
+  passwordSubmitting.value = true
+  try {
+    await userApi.updatePassword(passwordForm.oldPassword, passwordForm.newPassword)
+    ElMessage.success('密码修改成功')
+    passwordDialogVisible.value = false
+  } catch {
+    // 失败提示由 axios 响应拦截器统一弹出
+  } finally {
+    passwordSubmitting.value = false
+  }
+}
+
+function openAppealHistory() {
+  appealHistoryVisible.value = true
+  if (appealHistory.value.length === 0) loadAppealHistory(true)
+}
+
+async function loadAppealHistory(refresh: boolean) {
+  if (appealHistoryLoading.value) return
+  appealHistoryLoading.value = true
+  try {
+    const page = await adminAppealApi.myAppeals({
+      lastId: refresh ? null : appealHistoryLastId.value,
+      pageSize: 20,
+    })
+    appealHistory.value = refresh ? page.list : [...appealHistory.value, ...page.list]
+    const last = page.list[page.list.length - 1]
+    appealHistoryLastId.value = last ? last.appealId : null
+    appealHistoryHasMore.value = page.hasMore
+  } catch {
+    // 失败提示由 axios 响应拦截器统一弹出
+  } finally {
+    appealHistoryLoading.value = false
+  }
+}
+
+async function openAppealDetail(appealId: number) {
+  appealDetailVisible.value = true
+  appealDetailLoading.value = true
+  appealDetail.value = null
+  try {
+    appealDetail.value = await adminAppealApi.getAppealDetail(appealId)
+  } catch {
+    // 加载失败时收起详情弹窗，失败提示由拦截器统一弹出
+    appealDetailVisible.value = false
+  } finally {
+    appealDetailLoading.value = false
+  }
+}
+
+// 查看我的内容
+function viewMyContent(item: MyContentItem) {
+  if (item.type === 'POST') {
+    router.push(`/discuss/${item.targetId}`)
+  } else if (item.type === 'SOLUTION' && item.questionId) {
+    router.push({
+      path: '/questiondetailview',
+      query: { questionId: item.questionId, tab: 'solution', solutionId: item.targetId },
+    })
+  } else if (item.type === 'COMMENT' && item.rootId) {
+    if (item.rootType === 'SOLUTION') {
+      router.push({
+        path: '/questiondetailview',
+        query: { questionId: item.questionId || undefined, tab: 'solution', solutionId: item.rootId },
+      })
+    } else {
+      router.push({ path: `/discuss/${item.rootId}`, query: { commentId: item.targetId } })
+    }
+  }
+}
+
+// 编辑我的内容
+function editMyContent(item: MyContentItem) {
+  if (item.type === 'POST') {
+    router.push(`/discuss/${item.targetId}/edit`)
+  } else if (item.type === 'SOLUTION') {
+    router.push(`/solutions/${item.targetId}/edit`)
+  }
+}
+
+// 打开申诉弹窗
+function openAppealDialog(item: MyContentItem) {
+  appealTarget.value = item
+  appealForm.value.reason = ''
+  appealDialogVisible.value = true
+}
+
+// 提交申诉
+async function submitAppeal() {
+  if (!appealTarget.value) return
+  
+  if (!appealForm.value.reason.trim()) {
+    ElMessage.warning('请填写申诉理由')
+    return
+  }
+  
+  try {
+    appealSubmitting.value = true
+    
+    // 社区服务的 AppealDto 使用 postType/postId，不能发送 rootType/rootId。
+    const payload = {
+      postType: appealTarget.value.type,
+      postId: Number(appealTarget.value.targetId),
+      reason: appealForm.value.reason.trim(),
+    }
+
+    await appealApi.submitAppeal(payload)
+    
+    ElMessage.success('申诉已提交，等待管理员审核')
+    appealDialogVisible.value = false
+    
+    // 刷新列表
+    await loadMyContent(true)
+  } catch (error) {
+    console.error('提交申诉失败:', error)
+    ElMessage.error('提交申诉失败，请稍后重试')
+  } finally {
+    appealSubmitting.value = false
+  }
+}
 
 const normalizeUser = (raw: any): Partial<UserDto> => ({
   ...raw,
@@ -320,16 +907,82 @@ const openProfileDialog = () => {
 const loadProfile = async () => {
   loading.value = true
   try {
-    const [userRes, recordsRes, favoritesRes]: any[] = await Promise.all([
-      localUserId.value ? userApi.getUserById(localUserId.value) : Promise.resolve(null),
+    const [userResult, recordsResult, favoritesResult] = await Promise.allSettled([
+      localUserId.value ? userApi.getCurrentUser() : Promise.resolve(null),
       questionApi.getUserSubmitRecords({ pageSize: 30 }),
       reviewApi.listFavorites(),
     ])
-    applyUserInfo(userRes?.data || userRes || {})
-    submitRecords.value = getCursorRecords(recordsRes).map(normalizeRecord)
-    favorites.value = favoritesRes?.data || favoritesRes || []
+
+    if (userResult.status === 'fulfilled') {
+      const user = userResult.value?.data ?? userResult.value ?? {}
+      applyUserInfo(user)
+    } else {
+      console.error('用户信息加载失败:', userResult.reason)
+    }
+
+    if (recordsResult.status === 'fulfilled') {
+      submitRecords.value = getCursorRecords(recordsResult.value).map(normalizeRecord)
+    } else {
+      submitRecords.value = []
+      console.error('提交记录加载失败:', recordsResult.reason)
+    }
+
+    if (favoritesResult.status === 'fulfilled') {
+      const favoriteData = favoritesResult.value?.data ?? favoritesResult.value ?? []
+      favorites.value = Array.isArray(favoriteData) ? favoriteData : []
+    } else {
+      favorites.value = []
+      console.error('收藏夹加载失败:', favoritesResult.reason)
+    }
   } finally {
     loading.value = false
+  }
+}
+
+const loadAiConfigs = async () => {
+  aiConfigLoading.value = true
+  aiConfigError.value = ''
+  try {
+    const response: any = await aiApi.listConfigs()
+    const configs = response?.data || response || []
+    aiConfigs.value = (Array.isArray(configs) ? configs : []).map((config: UserAiConfigSummary) => ({
+      ...config,
+      userConfigId: Number(config.userConfigId),
+      modelNames: config.modelNames || [],
+    }))
+  } catch (error) {
+    aiConfigs.value = []
+    aiConfigError.value = 'AI 配置服务暂不可用，请确认 service-ai 已启动'
+    console.error('AI 配置加载失败:', error)
+  } finally {
+    aiConfigLoading.value = false
+  }
+}
+
+const openCreateModelDialog = () => {
+  modelDialogMode.value = 'create'
+  editingConfigId.value = null
+  modelDialogVisible.value = true
+}
+
+const openEditModelDialog = (configId: number) => {
+  modelDialogMode.value = 'edit'
+  editingConfigId.value = configId
+  modelDialogVisible.value = true
+}
+
+const removeModelConfig = async (config: UserAiConfigSummary) => {
+  try {
+    await ElMessageBox.confirm(
+      `删除“${config.groupName}”后，题目页将无法继续使用其中的模型。`,
+      '删除模型配置',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+    )
+    await aiApi.deleteConfig(config.userConfigId)
+    ElMessage.success('模型配置已删除')
+    await loadAiConfigs()
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') throw error
   }
 }
 
@@ -397,6 +1050,11 @@ const openRecordQuestion = (record: SubmitRecord) => {
 }
 
 const goHome = () => navigateTopLevel(router, '/home')
+const selectProfileSection = async (section: 'overview' | 'content' | 'ai') => {
+  profileSection.value = section
+  if (section === 'content' && myContent.value.length === 0) await loadMyContent(true)
+  if (section === 'ai' && aiConfigs.value.length === 0) await loadAiConfigs()
+}
 const goReview = () => navigateTopLevel(router, '/review')
 const goDiscuss = () => navigateTopLevel(router, '/discuss')
 const goFavorites = () => navigateTopLevel(router, '/favorites')
@@ -411,19 +1069,35 @@ const handleProfileCommand = (command: string) => {
     return
   }
   if (command === 'password') {
-    ElMessage.info('修改密码入口后续可以接到设置弹窗')
+    openPasswordDialog()
+    return
+  }
+  if (command === 'freeze') {
+    openFreezeDialog()
+    return
+  }
+  if (command === 'delete') {
+    void deleteAccount()
   }
 }
 
-onMounted(loadProfile)
+onMounted(async () => {
+  await loadProfile()
+  if (route.query.section === 'ai') {
+    profileSection.value = 'ai'
+    await loadAiConfigs()
+    await nextTick()
+    document.getElementById('ai-model-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+})
 </script>
 
 <style scoped>
 .profile-view {
   min-height: 100vh;
-  background: #f6f7f9;
-  color: #191c1e;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--cw-bg-page);
+  color: var(--cw-text-1);
+  font-family: var(--cw-font-sans);
 }
 
 .navbar {
@@ -436,7 +1110,7 @@ onMounted(loadProfile)
   align-items: center;
   justify-content: space-between;
   background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
 }
 
 .navbar-left,
@@ -465,7 +1139,7 @@ onMounted(loadProfile)
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 18px;
   font-weight: 700;
 }
@@ -473,7 +1147,7 @@ onMounted(loadProfile)
 .logo-icon,
 .nav-item.active,
 .nav-item:hover {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .nav-menu {
@@ -483,13 +1157,13 @@ onMounted(loadProfile)
 .nav-item {
   padding: 7px 15px;
   border-radius: 6px;
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   font-size: 14px;
   font-weight: 500;
 }
 
 .nav-item:hover {
-  background: #fff8f0;
+  background: var(--cw-brand-soft);
 }
 
 .profile-shell {
@@ -512,9 +1186,10 @@ onMounted(loadProfile)
 .side-card,
 .stat-panel,
 .achievement-card,
-.activity-card {
+.activity-card,
+.ai-settings-card {
   background: #ffffff;
-  border: 1px solid #e8ecf1;
+  border: 1px solid var(--cw-border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
@@ -529,14 +1204,14 @@ onMounted(loadProfile)
 
 .profile-main h1 {
   margin: 0;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 22px;
 }
 
 .profile-main p,
 .profile-meta,
 .bio {
-  color: #6b7280;
+  color: var(--cw-text-3);
 }
 
 .profile-main p {
@@ -564,8 +1239,8 @@ onMounted(loadProfile)
 }
 
 .edit-button {
-  background: #262626;
-  border-color: #262626;
+  background: var(--cw-text-1);
+  border-color: var(--cw-text-1);
 }
 
 .more-button {
@@ -590,7 +1265,7 @@ onMounted(loadProfile)
 .stat-panel h2,
 .section-header h2 {
   margin: 0;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 16px;
 }
 
@@ -603,16 +1278,16 @@ onMounted(loadProfile)
   border-left: 3px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   text-align: left;
   cursor: pointer;
 }
 
 .side-link:hover,
 .side-link.active {
-  border-left-color: #ffa116;
-  background: #fff8f0;
-  color: #d98200;
+  border-left-color: var(--cw-brand);
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
 }
 
 .tag-list {
@@ -662,11 +1337,11 @@ onMounted(loadProfile)
 }
 
 .ring-track {
-  stroke: #eef0f3;
+  stroke: var(--cw-bg-page);
 }
 
 .ring-value {
-  stroke: #00b8a3;
+  stroke: var(--cw-success);
   stroke-linecap: round;
 }
 
@@ -680,13 +1355,13 @@ onMounted(loadProfile)
 }
 
 .ring-text strong {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 30px;
 }
 
 .ring-text span,
 .section-header span {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
@@ -699,9 +1374,9 @@ onMounted(loadProfile)
 
 .rank-panel div {
   padding: 16px;
-  border: 1px solid #edf0f3;
+  border: 1px solid var(--cw-bg-subtle);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--cw-bg-page);
 }
 
 .rank-panel span,
@@ -710,19 +1385,89 @@ onMounted(loadProfile)
 }
 
 .rank-panel span {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
 .rank-panel strong {
   margin-top: 12px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 24px;
 }
 
 .achievement-card,
-.activity-card {
+.activity-card,
+.ai-settings-card {
   padding: 20px;
+}
+
+.ai-settings-card {
+  scroll-margin-top: 78px;
+}
+
+.ai-settings-card .section-header > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-config-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-config-item {
+  min-height: 72px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--cw-bg-subtle);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-config-item:last-child {
+  border-bottom: 0;
+}
+
+.config-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 7px;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.config-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.config-main strong,
+.config-main span {
+  display: block;
+}
+
+.config-main strong {
+  color: #24272c;
+  font-size: 14px;
+}
+
+.config-main span {
+  margin-top: 5px;
+  color: #898f98;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.config-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
 }
 
 .section-header {
@@ -730,6 +1475,109 @@ onMounted(loadProfile)
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.content-header > div:first-child {
+  min-width: 0;
+}
+
+.content-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.appeal-history-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.appeal-history-item {
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--cw-bg-subtle);
+  cursor: pointer;
+}
+
+.appeal-history-item:last-child {
+  border-bottom: none;
+}
+
+.appeal-history-item:hover {
+  background: #f9fafb;
+}
+
+.appeal-history-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.appeal-history-head strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appeal-history-reason {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #5b6470;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.my-content-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.my-content-item {
+  min-height: 72px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--cw-bg-subtle);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.my-content-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.my-content-title-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.my-content-title-line strong {
+  overflow: hidden;
+  color: #24272c;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-content-item p {
+  margin: 7px 0 4px;
+  color: #676d76;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.my-content-item small {
+  color: var(--cw-text-3);
+}
+
+.my-content-more {
+  padding-top: 10px;
+  text-align: center;
 }
 
 .badge-list {
@@ -740,9 +1588,9 @@ onMounted(loadProfile)
 
 .achievement-badge {
   padding: 16px;
-  border: 1px solid #edf0f3;
+  border: 1px solid var(--cw-bg-subtle);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: var(--cw-bg-page);
 }
 
 .badge-icon {
@@ -756,13 +1604,13 @@ onMounted(loadProfile)
 }
 
 .badge-icon.orange {
-  background: #fff8f0;
-  color: #ffa116;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand);
 }
 
 .badge-icon.green {
   background: #eefaf7;
-  color: #00a38f;
+  color: var(--cw-success);
 }
 
 .badge-icon.blue {
@@ -777,12 +1625,12 @@ onMounted(loadProfile)
 
 .achievement-badge strong {
   margin-top: 12px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
 }
 
 .achievement-badge small {
   margin-top: 4px;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
 }
 
 .activity-list {
@@ -811,7 +1659,7 @@ onMounted(loadProfile)
   min-height: 66px;
   padding: 12px 4px;
   border: 0;
-  border-bottom: 1px solid #edf0f3;
+  border-bottom: 1px solid var(--cw-bg-subtle);
   background: transparent;
   display: flex;
   align-items: center;
@@ -821,7 +1669,7 @@ onMounted(loadProfile)
 }
 
 .activity-item:hover {
-  background: #fffdf9;
+  background: var(--cw-brand-soft);
 }
 
 .activity-status {
@@ -829,11 +1677,11 @@ onMounted(loadProfile)
 }
 
 .activity-status.success {
-  color: #00a38f;
+  color: var(--cw-success);
 }
 
 .activity-status.failed {
-  color: #d64d4d;
+  color: var(--cw-danger);
 }
 
 .activity-main {
@@ -847,12 +1695,12 @@ onMounted(loadProfile)
 }
 
 .activity-main strong {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
 }
 
 .activity-main small {
   margin-top: 3px;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
 }
 
 .state-line {
@@ -861,7 +1709,7 @@ onMounted(loadProfile)
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
 }
 
 @media (max-width: 980px) {
@@ -886,4 +1734,32 @@ onMounted(loadProfile)
     padding-top: 18px;
   }
 }
+
+.reject-reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fef0f0;
+  border-left: 3px solid var(--cw-danger);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--cw-danger);
+}
+
+.my-content-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.appeal-content-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--cw-bg-page);
+  border-radius: 6px;
+}
 </style>
+

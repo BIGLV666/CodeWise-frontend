@@ -167,7 +167,7 @@ const getStatusClass = (status: number) => {
 
 .problem-search :deep(.el-input__wrapper) {
   border-radius: 20px;
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
 }
 
 .difficulty-select {
@@ -177,7 +177,7 @@ const getStatusClass = (status: number) => {
 .problem-card {
   overflow: hidden;
   border-radius: 8px;
-  border-color: #e8ecf1;
+  border-color: var(--cw-border);
 }
 
 .problem-card :deep(.el-card__body) {
@@ -199,12 +199,12 @@ const getStatusClass = (status: number) => {
 }
 
 .problem-card :deep(.favorite-problem-row:hover td.el-table__cell) {
-  background: #fffdf9 !important;
+  background: var(--cw-brand-soft) !important;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
 }
 
 .problem-card :deep(.favorite-problem-row:hover .problem-title) {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .status-icon {
@@ -212,19 +212,19 @@ const getStatusClass = (status: number) => {
 }
 
 .status-icon.accepted {
-  color: #00a38f;
+  color: var(--cw-success);
 }
 
 .status-icon.attempted {
-  color: #e6a23c;
+  color: var(--cw-warning);
 }
 
 .status-icon.not-tried {
-  color: #c0c4cc;
+  color: var(--cw-text-faint);
 }
 
 .problem-title {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 15px;
   font-weight: 600;
   transition: color 0.2s;
@@ -232,18 +232,18 @@ const getStatusClass = (status: number) => {
 
 .problem-subtitle {
   margin-top: 3px;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 12px;
 }
 
 .acceptance {
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 
 .list-footer {
   justify-content: space-between;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
   font-size: 13px;
 }
 

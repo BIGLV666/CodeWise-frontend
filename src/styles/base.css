@@ -1,0 +1,53 @@
+/** 全局基础样式：字体、背景、选区、滚动条。 */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--cw-font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--cw-text-1);
+  background: var(--cw-bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+}
+
+::selection {
+  background: rgba(255, 161, 22, 0.22);
+}
+
+/* 细滚动条，避免默认宽滚动条破坏卡片布局观感 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cw-text-faint) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background: var(--cw-text-faint);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--cw-text-3);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--cw-brand);
+  outline-offset: 2px;
+}

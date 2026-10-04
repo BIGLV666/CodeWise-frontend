@@ -95,10 +95,10 @@ src/
 
 ## 本地开发
 
-项目实际目录为：
+项目根目录：
 
 ```text
-E:\learncard\CodeWise-frontend\CodeWise-frontend
+E:\learncard\CodeWise-frontend
 ```
 
 安装依赖：

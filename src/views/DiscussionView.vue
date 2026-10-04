@@ -3,8 +3,7 @@
     <header class="navbar">
       <div class="navbar-left">
         <button class="logo" type="button" @click="goHome">
-          <span class="logo-icon">C</span>
-          <span class="logo-text">CodeWise</span>
+          <BrandLogo :size="28" />
         </button>
         <nav class="nav-menu">
           <button class="nav-item" type="button" @click="goHome">题库</button>
@@ -197,6 +196,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { ChatDotRound, EditPen, Loading, Pointer, Search, View } from '@element-plus/icons-vue'
 import communityApi from '@/api/communityApi'
 import questionApi from '@/api/questionApi'
@@ -251,48 +251,6 @@ const tabs = [
   { label: '面试复盘', value: 'interview' },
   { label: '内推信息', value: 'referral' },
   { label: '技术交流', value: 'tech' },
-]
-
-const fallbackPosts: CommunityPost[] = [
-  {
-    postId: 'mock-1',
-    postTitle: '如何系统准备动态规划题型？',
-    postContent: '最近刷到背包、区间 DP 和状态压缩，经常知道要用 DP 但想不清状态定义，大家有什么训练路径？',
-    tags: ['Algorithm', 'DP', 'Interview'],
-    userName: 'CodeWise',
-    likeCount: 18,
-    commentCount: 7,
-    viewCount: 2400,
-    createTime: '2026-07-10 09:20:00',
-    coverText: 'DP',
-    coverTone: 'orange',
-  },
-  {
-    postId: 'mock-2',
-    postTitle: '我的 100 天刷题复盘',
-    postContent: '坚持记录每天的通过题目和错题原因，比单纯追数量更有效。这里分享一下我做复盘表的方法。',
-    tags: ['Review', '100Days'],
-    userName: 'Dev_Alex',
-    likeCount: 31,
-    commentCount: 12,
-    viewCount: 3100,
-    createTime: '2026-07-09 21:10:00',
-    coverText: '100 Days',
-    coverTone: 'green',
-  },
-  {
-    postId: 'mock-3',
-    postTitle: '前端面试怎么准备手写题？',
-    postContent: '防抖节流、Promise、深拷贝、虚拟列表这些题怎么练比较扎实？想听听大家的经验。',
-    tags: ['Frontend', 'Interview'],
-    userName: 'SaraK',
-    likeCount: 9,
-    commentCount: 4,
-    viewCount: 860,
-    createTime: '2026-07-10 12:30:00',
-    coverText: 'FE',
-    coverTone: 'blue',
-  },
 ]
 
 const avatarUrl = computed(() => normalizeAvatarUrl(localStorage.getItem('avatarUrl') || ''))
@@ -403,16 +361,15 @@ const loadPosts = async (refresh = true) => {
     posts.value = refresh ? records : [...posts.value, ...records]
     lastId.value = data.nextCursor !== undefined && data.nextCursor !== null ? String(data.nextCursor) : null
     hasMore.value = Boolean(data.hasNext)
-
-    if (posts.value.length === 0) {
-      posts.value = fallbackPosts
-      hasMore.value = false
-    }
   } catch (error) {
-    console.warn('讨论接口暂不可用，使用本地示例数据', error)
+    console.warn('讨论列表加载失败', error)
     if (refresh) {
-      posts.value = fallbackPosts
+      // 刷新失败清空列表交由模板空态展示；加载更多失败保留已有数据
+      posts.value = []
       hasMore.value = false
+      ElMessage.error('讨论加载失败，请稍后重试')
+    } else {
+      ElMessage.error('加载更多失败，请稍后重试')
     }
   } finally {
     loading.value = false
@@ -444,7 +401,6 @@ const searchPosts = async () => {
     const res: any = await communityApi.searchPosts({ keyword: text, limit: 20 })
     const data = unwrapData<any[]>(res, [])
     searchPostResults.value = Array.isArray(data) ? data.map(mapPost) : []
-    console.log(searchPostResults.value)
   } catch (error) {
     console.warn('搜索帖子失败:', error)
     searchPostResults.value = []
@@ -559,9 +515,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .discussion-view {
   min-height: 100vh;
-  background: #f6f7f9;
-  color: #191c1e;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--cw-bg-page);
+  color: var(--cw-text-1);
+  font-family: var(--cw-font-sans);
 }
 
 .navbar {
@@ -574,7 +530,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
 }
 
 .navbar-left,
@@ -609,14 +565,14 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 18px;
   font-weight: 700;
 }
 
 .logo-icon,
 .nav-item.active {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .logo-icon {
@@ -631,15 +587,15 @@ onBeforeUnmount(() => {
 .nav-item {
   padding: 7px 15px;
   border-radius: 6px;
-  color: #4a4a4a;
+  color: var(--cw-text-2);
   font-size: 14px;
   font-weight: 500;
 }
 
 .nav-item:hover,
 .nav-item.active {
-  background: #fff8f0;
-  color: #ffa116;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand);
 }
 
 .search-input {
@@ -674,28 +630,28 @@ onBeforeUnmount(() => {
   padding-top: 10px;
   display: flex;
   gap: 24px;
-  border-bottom: 1px solid #e8ecf1;
-  background: #f6f7f9;
+  border-bottom: 1px solid var(--cw-border);
+  background: var(--cw-bg-page);
 }
 
 .tab-item {
   padding: 0 0 12px;
   border-bottom: 2px solid transparent;
-  color: #6b7280;
+  color: var(--cw-text-3);
   font-size: 14px;
   font-weight: 600;
 }
 
 .tab-item.active {
-  border-bottom-color: #262626;
-  color: #1a1a2e;
+  border-bottom-color: var(--cw-text-1);
+  color: var(--cw-text-1);
 }
 
 .composer-card,
 .post-card,
 .side-card {
   background: #ffffff;
-  border: 1px solid #e8ecf1;
+  border: 1px solid var(--cw-border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
@@ -711,7 +667,7 @@ onBeforeUnmount(() => {
 
 .composer-card h1 {
   margin: 0 0 5px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 24px;
 }
 
@@ -722,7 +678,7 @@ onBeforeUnmount(() => {
 .post-stats,
 .trend-copy > span,
 .empty-tip {
-  color: #6b7280;
+  color: var(--cw-text-3);
 }
 
 .post-list {
@@ -748,7 +704,7 @@ onBeforeUnmount(() => {
 }
 
 .post-card:hover h2 {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 .post-main {
@@ -770,7 +726,7 @@ onBeforeUnmount(() => {
 
 .post-card h2 {
   margin: 0 0 8px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 18px;
   line-height: 1.35;
   transition: color 0.18s ease;
@@ -818,19 +774,19 @@ onBeforeUnmount(() => {
 }
 
 .post-cover.orange {
-  background: linear-gradient(135deg, #262626, #9a5b00);
+  background: linear-gradient(135deg, var(--cw-text-1), var(--cw-brand-dark));
 }
 
 .post-cover.green {
-  background: linear-gradient(135deg, #1f2937, #047857);
+  background: linear-gradient(135deg, var(--cw-text-1), #047857);
 }
 
 .post-cover.blue {
-  background: linear-gradient(135deg, #1f2937, #2563eb);
+  background: linear-gradient(135deg, var(--cw-text-1), #2563eb);
 }
 
 .post-cover.dark {
-  background: #262626;
+  background: var(--cw-text-1);
 }
 
 .load-more,
@@ -840,7 +796,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: #8c8c8c;
+  color: var(--cw-text-3);
 }
 
 .side-panel {
@@ -867,7 +823,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 13px;
   font-weight: 700;
 }
@@ -884,7 +840,7 @@ onBeforeUnmount(() => {
 
 .side-title h2 {
   margin: 0;
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 16px;
 }
 
@@ -909,15 +865,15 @@ onBeforeUnmount(() => {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #f5f7fa;
-  color: #4a4a4a;
+  background: var(--cw-bg-page);
+  color: var(--cw-text-2);
   font-size: 12px;
 }
 
 .tag-cloud button.active,
 .tag-cloud button:hover {
-  background: #fff8f0;
-  color: #d98200;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
 }
 
 .question-result-list {
@@ -934,7 +890,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border-bottom: 1px solid #edf0f3;
+  border-bottom: 1px solid var(--cw-bg-subtle);
   color: #24292f;
   text-align: left;
 }
@@ -947,13 +903,13 @@ onBeforeUnmount(() => {
 }
 
 .question-result:hover {
-  color: #d98200;
+  color: var(--cw-brand-dark);
 }
 
 .trend-item {
   width: 100%;
   padding: 12px 0;
-  border-bottom: 1px solid #edf0f3;
+  border-bottom: 1px solid var(--cw-bg-subtle);
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -971,8 +927,8 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   display: grid;
   place-items: center;
-  background: #f5f7fa;
-  color: #8a8f98;
+  background: var(--cw-bg-page);
+  color: var(--cw-text-3);
   font-size: 12px;
   font-style: normal;
   font-weight: 800;
@@ -981,8 +937,8 @@ onBeforeUnmount(() => {
 .trend-item:nth-of-type(1) i,
 .trend-item:nth-of-type(2) i,
 .trend-item:nth-of-type(3) i {
-  background: #fff8f0;
-  color: #d98200;
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
 }
 
 .trend-copy {
@@ -996,7 +952,7 @@ onBeforeUnmount(() => {
 }
 
 .trend-copy strong {
-  color: #1a1a2e;
+  color: var(--cw-text-1);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -1007,7 +963,7 @@ onBeforeUnmount(() => {
 }
 
 .trend-item:hover .trend-copy strong {
-  color: #ffa116;
+  color: var(--cw-brand);
 }
 
 @media (max-width: 980px) {

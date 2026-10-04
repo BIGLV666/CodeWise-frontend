@@ -31,11 +31,17 @@
           :selected-test-case-index="selectedTestCaseIndex"
           :editing-test-case-index="editingTestCaseIndex"
           :debugging="debugging"
+          :can-provide-tests="isFunctionQuestion && hasSubmittedQuestion"
+          :providing-tests="providingTests"
+          :can-generate-random="canGenerateRandomTests"
+          :initial-solution-id="initialSolutionId"
           @tab-click="handleTabClick"
           @view-code="viewCodeInEditor"
           @add-testcase="addTestCase"
           @reset-to-sample="resetToSample"
           @debug="handleDebug"
+          @provide-tests="provideFunctionTests"
+          @generate-random="goRandomGenerator"
           @select-testcase="selectTestCase"
           @start-edit-testcase="startEditTestCase"
           @remove-testcase="removeTestCase"
@@ -50,22 +56,36 @@
       </div>
 
       <!-- ====== 右面板：编辑器 + 结果 ====== -->
-      <div class="right-panel" :style="{ width: rightWidth + 'px' }">
+      <div class="right-panel">
         <!-- 编辑器工具栏 -->
         <div class="editor-toolbar">
           <el-select v-model="selectedLanguage" placeholder="选择语言" size="small" style="width:140px;" @change="onLanguageChange" link type="primary">
-            <el-option label="C++" value="cpp" />
-            <el-option label="C" value="c" />
+            <el-option label="C++" value="cpp" :disabled="isFunctionQuestion" />
+            <el-option label="C" value="c" :disabled="isFunctionQuestion" />
             <el-option label="Java" value="java" />
-            <el-option label="Python3" value="python" />
-            <el-option label="Python2" value="python" />
-            <el-option label="Golang" value="go" />
-            <el-option label="C#" value="csharp" />
-            <el-option label="JavaScript" value="javascript" />
+            <el-option label="Python3" value="python" :disabled="isFunctionQuestion" />
+            <el-option label="Python2" value="python" :disabled="isFunctionQuestion" />
+            <el-option label="Golang" value="go" :disabled="isFunctionQuestion" />
+            <el-option label="C#" value="csharp" :disabled="isFunctionQuestion" />
+            <el-option label="JavaScript" value="javascript" :disabled="isFunctionQuestion" />
           </el-select>
+          <el-tag v-if="isFunctionQuestion" size="small" type="warning" effect="dark">核心函数 · Java</el-tag>
           <el-button size="small" @click="handleSubmit()" :loading="submitting">
             🚀 提交
           </el-button>
+          <el-tooltip content="AI 助手" placement="bottom">
+            <el-badge :is-dot="aiHasUpdate" class="ai-entry-badge">
+              <el-button
+                :icon="MagicStick"
+                circle
+                size="small"
+                class="ai-entry-button"
+                :class="{ active: aiPanelVisible, flashing: aiFlashing }"
+                aria-label="打开 AI 助手"
+                @click="toggleAiPanel"
+              />
+            </el-badge>
+          </el-tooltip>
           <el-button size="small" @click="handleDebug">▶️ 调试</el-button>
           <el-button size="small" @click="handleFormat">📐 格式化</el-button>
           <span class="editor-status" :class="{ 'is-typing': isTyping }">
@@ -93,8 +113,18 @@
             @copy-text="copyText"
             @clear-selected-testcase="clearSelectedTestCase"
           />
+        </div>
       </div>
-    </div>
+
+      <div v-show="aiPanelVisible" class="ai-panel-shell">
+        <AiAssistantPanel
+          :visible="aiPanelVisible"
+          :question-id="questionData?.questionId || getCurrentQuestionId() || ''"
+          :get-current-code="getCurrentEditorCode"
+          @close="closeAiPanel"
+          @advice-ready="handleAiAdviceReady"
+        />
+      </div>
     </div>
 
     <el-dialog
@@ -125,32 +155,77 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <RealtimeAdviceWidget
+      v-if="questionData?.questionId || getCurrentQuestionId()"
+      :question-id="questionData?.questionId || getCurrentQuestionId() || ''"
+    />
+
   </div>
 </template>
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import * as monaco from 'monaco-editor'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { MagicStick } from '@element-plus/icons-vue'
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js'
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import 'monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution.js'
+import 'monaco-editor/esm/vs/basic-languages/csharp/csharp.contribution.js'
+import 'monaco-editor/esm/vs/basic-languages/go/go.contribution.js'
+import 'monaco-editor/esm/vs/basic-languages/java/java.contribution.js'
+import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution.js'
+import 'monaco-editor/esm/vs/basic-languages/python/python.contribution.js'
 import { marked } from 'marked'
 import websocketService from '@/utils/WebSocket'
+import aiApi, { type RealtimeAnalysisChange } from '@/api/aiApi'
 import questionApi from '@/api/questionApi'
+import userApi from '@/api/userApi'
 import reviewApi from '@/api/reviewApi'
 import QuestionInfoTabs from '@/components/question-detail/QuestionInfoTabs.vue'
 import QuestionResultContent from '@/components/question-detail/QuestionResultContent.vue'
 import QuestionTopBar from '@/components/question-detail/QuestionTopBar.vue'
+import AiAssistantPanel from '@/components/question-detail/AiAssistantPanel.vue'
+import RealtimeAdviceWidget from '@/components/question-detail/RealtimeAdviceWidget.vue'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
 import type { DebugTestCase, JudgeResultDTO, JudgeReturnRecordDto, ParsedTestData } from '@/types/QuestionDetail'
+import { useUserStore } from '@/stores/User'
+import { navigateBack } from '@/utils/navigation'
 
-const MARGIN_RIGHT = 70
+const AI_PANEL_WIDTH = 390
+const AI_PANEL_GAP = 8
+
+const monacoGlobal = self as typeof self & {
+  MonacoEnvironment?: { getWorker: () => Worker }
+}
+monacoGlobal.MonacoEnvironment = {
+  getWorker: () => new EditorWorker(),
+}
 
 // ====== 路由 ======
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 // ====== 数据 ======
 const questionData = ref<any>(null)
-const activeTab = ref('description')
+const currentUserRoleId = ref<number | null>(
+  userStore.userDto?.roleId === undefined ? null : Number(userStore.userDto.roleId),
+)
+const isFunctionQuestion = computed(() => questionData.value?.questionType === 'FUNCTION')
+const canGenerateRandomTests = computed(() => {
+  if (!isFunctionQuestion.value) return false
+  const currentUserId = userStore.userDto?.userId || localStorage.getItem('userId') || ''
+  const creatorId = questionData.value?.createUserId
+  const isCreator = creatorId !== undefined && creatorId !== null && String(creatorId) === String(currentUserId)
+  const isAdmin = currentUserRoleId.value === 2
+  return isCreator || isAdmin
+})
+const routeTab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab
+const initialSolutionId = String(
+  (Array.isArray(route.query.solutionId) ? route.query.solutionId[0] : route.query.solutionId) || '',
+)
+const activeTab = ref(routeTab === 'solution' ? 'solution' : 'description')
 const selectedLanguage = ref('cpp')
 const loading = ref(false)
 const isTyping = ref(false)
@@ -158,6 +233,10 @@ const editorStatus = ref('就绪')
 const submitting = ref(false)
 const judgeProgress = ref(0)
 const resultHeight = ref(260)
+const aiPanelVisible = ref(false)
+const aiHasUpdate = ref(false)
+const aiFlashing = ref(false)
+let aiFlashTimer: number | undefined
 const favoriteDialogVisible = ref(false)
 const favoriteOptionsLoading = ref(false)
 const addingFavorite = ref(false)
@@ -168,6 +247,8 @@ const selectedAddFavoriteId = ref('')
 const submissionsList = ref<any[]>([])
 const submissionsLoading = ref(false)
 const submissionsLoaded = ref(false)
+const hasSubmittedQuestion = ref(false)
+const providingTests = ref(false)
 
 // ====== 代码保存 ======
 const SAVE_KEY_PREFIX = 'codewise_code_'
@@ -233,6 +314,10 @@ const loadCode = (language: string): string | null => {
 }
 
 const onLanguageChange = (lang: string) => {
+  if (isFunctionQuestion.value && lang !== 'java') {
+    selectedLanguage.value = 'java'
+    return
+  }
   const savedCode = loadCode(lang)
   if (savedCode && editor) {
     editor.setValue(savedCode)
@@ -275,6 +360,7 @@ const handleSubmit = async () => {
       submitScene: getSubmitScene(),
     })
     if (response.code === 200) {
+      hasSubmittedQuestion.value = true
       ElMessage.success('代码已提交，等待判题...')
       const interval = setInterval(() => {
         if (judgeProgress.value < 90) { judgeProgress.value += 10 } else { clearInterval(interval) }
@@ -286,7 +372,7 @@ const handleSubmit = async () => {
     }
   } catch (error) {
     console.error('提交失败:', error)
-    ElMessage.error('提交失败，请检查网络')
+    ElMessage.error('提交失败，请稍后重试')
     submitting.value = false
     judgeResult.value = null
   }
@@ -323,18 +409,103 @@ const editorContainer = ref<HTMLElement | null>(null)
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
 let formatTimeout: any = null
 let saveTimeout: any = null
+let realtimeAnalysisIdleTimer: number | undefined
+let realtimeAnalysisSending = false
+let realtimeAnalysisInitializedQuestionId = ''
+const pendingRealtimeChanges: RealtimeAnalysisChange[] = []
+
+const toLocalDateTime = (date = new Date()) => {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, -1)
+}
+
+const buildRealtimeTask = (changes: RealtimeAnalysisChange[]) => {
+  const userId = userStore.userDto?.userId || localStorage.getItem('userId') || ''
+  const questionId = getCurrentQuestionId()
+  if (!userId || !questionId || !editor) return null
+
+  return {
+    rootId: `${String(userId)}:${String(questionId)}`,
+    userId: String(userId),
+    questionId: Number(questionId),
+    code: editor.getValue(),
+    changes,
+  }
+}
+
+const initializeRealtimeAnalysis = async () => {
+  const questionId = String(getCurrentQuestionId() || '')
+  if (!questionId || realtimeAnalysisInitializedQuestionId === questionId) return
+  const payload = buildRealtimeTask([])
+  if (!payload) return
+
+  realtimeAnalysisInitializedQuestionId = questionId
+  try {
+    await aiApi.reportRealtimeAnalysis(payload)
+  } catch (error) {
+    realtimeAnalysisInitializedQuestionId = ''
+    console.warn('初始化实时分析失败:', error)
+  }
+}
+
+const scheduleRealtimeAnalysis = () => {
+  if (realtimeAnalysisIdleTimer) window.clearTimeout(realtimeAnalysisIdleTimer)
+  realtimeAnalysisIdleTimer = window.setTimeout(() => {
+    realtimeAnalysisIdleTimer = undefined
+    void flushRealtimeAnalysis()
+  }, 45_000)
+}
+
+const flushRealtimeAnalysis = async () => {
+  if (realtimeAnalysisSending || pendingRealtimeChanges.length === 0) return
+  const batch = pendingRealtimeChanges.splice(0, pendingRealtimeChanges.length)
+  const payload = buildRealtimeTask(batch)
+  if (!payload) {
+    pendingRealtimeChanges.unshift(...batch)
+    return
+  }
+
+  realtimeAnalysisSending = true
+  try {
+    await aiApi.reportRealtimeAnalysis(payload)
+  } catch (error) {
+    pendingRealtimeChanges.unshift(...batch)
+    console.warn('上报实时分析增量失败:', error)
+    scheduleRealtimeAnalysis()
+  } finally {
+    realtimeAnalysisSending = false
+  }
+}
+
+const collectRealtimeChanges = (event: monaco.editor.IModelContentChangedEvent) => {
+  const createTime = toLocalDateTime()
+  event.changes.forEach((change) => {
+    pendingRealtimeChanges.push({
+      rangeOffset: change.rangeOffset,
+      rangeLength: change.rangeLength,
+      text: change.text,
+      version: event.versionId,
+      createTime,
+    })
+  })
+  if (event.changes.length > 0) scheduleRealtimeAnalysis()
+}
 
 // ====== 布局 ======
 const containerRef = ref<HTMLElement | null>(null)
 const leftWidth = ref(0)
-const rightWidth = ref(0)
 const isResizing = ref(false)
+
+const getAiPanelSpace = () =>
+  aiPanelVisible.value && window.innerWidth > 1280 ? AI_PANEL_WIDTH + AI_PANEL_GAP : 0
 
 const calculateWidths = () => {
   if (!containerRef.value) return
   const containerWidth = containerRef.value.offsetWidth
-  leftWidth.value = Math.floor(containerWidth * 0.30)
-  rightWidth.value = Math.floor(containerWidth * 0.70) - 6 - MARGIN_RIGHT
+  const contentWidth = containerWidth - getAiPanelSpace()
+  const minLeftWidth = contentWidth < 900 ? Math.max(220, contentWidth * 0.38) : 300
+  const maxLeftWidth = Math.max(minLeftWidth, contentWidth - 360)
+  leftWidth.value = Math.min(Math.max(Math.floor(contentWidth * 0.30), minLeftWidth), maxLeftWidth)
 }
 
 const resetLayout = () => {
@@ -395,12 +566,28 @@ const loadSubmissions = async () => {
     const response: any = await questionApi.getSubmitRecord(questionId)
     if (response.code === 200) {
       submissionsList.value = response.data || []
+      hasSubmittedQuestion.value = submissionsList.value.length > 0
       submissionsLoaded.value = true
     }
   } catch (error) {
     console.error('加载提交记录失败:', error)
   } finally {
     submissionsLoading.value = false
+  }
+}
+
+const loadCurrentUserRole = async () => {
+  const userId = localStorage.getItem('userId')
+  if (!userId || currentUserRoleId.value !== null) return
+  try {
+    const response: any = await userApi.getUserById(userId)
+    const user = response?.data ?? response
+    if (user?.roleId !== undefined) {
+      currentUserRoleId.value = Number(user.roleId)
+      userStore.updateUser({ ...user, userId: String(user.userId ?? userId) })
+    }
+  } catch (error) {
+    console.warn('加载当前用户角色失败:', error)
   }
 }
 
@@ -424,6 +611,7 @@ const viewCodeInEditor = (row: any) => {
   }
   const lang = languageMap[row.language?.toLowerCase()] || 'cpp'
   monaco.editor.setModelLanguage(editor.getModel()!, lang)
+  enforceTwoSpaceIndentation()
   selectedLanguage.value = row.language?.toLowerCase() || 'cpp'
   ElMessage.success('已加载代码到编辑器')
 }
@@ -453,6 +641,10 @@ const loadQuestion = async () => {
     const response: any = await questionApi.getQuestionById(questionId)
     if (response.code === 200) {
       questionData.value = response.data
+      if (response.data?.questionType === 'FUNCTION') {
+        selectedLanguage.value = 'java'
+        await Promise.all([loadSubmissions(), loadCurrentUserRole()])
+      }
       initDebugCases()
       hasUserModified.value = false  // ✅ 确保标记为 false
       const savedCode = loadCode(selectedLanguage.value)
@@ -464,9 +656,18 @@ const loadQuestion = async () => {
     }
   } catch (error: any) {
     console.error('加载失败:', error)
-    ElMessage.error('加载失败，请检查网络')
+    ElMessage.error('加载失败，请稍后重试')
   } finally { loading.value = false }
 }
+const enforceTwoSpaceIndentation = () => {
+  editor?.getModel()?.updateOptions({
+    tabSize: 2,
+    indentSize: 2,
+    insertSpaces: true,
+    trimAutoWhitespace: true,
+  })
+}
+
 // ====== 初始化 Monaco Editor ======
 const initEditor = () => {
   if (!editorContainer.value) return
@@ -479,18 +680,20 @@ const initEditor = () => {
   editor = monaco.editor.create(editorContainer.value, {
     value: savedCode,
     language: languageMap[selectedLanguage.value] || 'cpp',
-    theme: 'vs-dark',
+    theme: 'vs',
     automaticLayout: true,
     fontSize: 14,
     fontFamily: 'JetBrains Mono, Fira Code, monospace',
     lineNumbers: 'on',
     minimap: { enabled: false },
-    tabSize: 4,
+    detectIndentation: false,
+    tabSize: 2,
     insertSpaces: true,
     bracketPairColorization: { enabled: true }
   })
 
-  editor.onDidChangeModelContent(() => {
+  editor.onDidChangeModelContent((event) => {
+    collectRealtimeChanges(event)
     isTyping.value = true
     editorStatus.value = '编辑中...'
     clearTimeout(formatTimeout)
@@ -506,24 +709,64 @@ const initEditor = () => {
   })
 
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => { handleSubmit() })
-  console.log('✅ Monaco Editor 初始化成功')
+  void initializeRealtimeAnalysis()
   editorStatus.value = '就绪'
 }
 
 const getDefaultCode = (lang: string): string => {
+  if (isFunctionQuestion.value) return getFunctionJavaStarter()
   const templates: Record<string, string> = {
-    cpp: `#include <iostream>\nusing namespace std;\n\nint main() {\n    // 请在这里编写代码\n    cout << "Hello, World!" << endl;\n    return 0;\n}`,
-    c: `#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}`,
-    java: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}`,
+    cpp: `#include <iostream>\nusing namespace std;\n\nint main() {\n  // 请在这里编写代码\n  cout << "Hello, World!" << endl;\n  return 0;\n}`,
+    c: `#include <stdio.h>\n\nint main() {\n  printf("Hello, World!\\n");\n  return 0;\n}`,
+    java: `public class Main {\n  public static void main(String[] args) {\n    System.out.println("Hello, World!");\n  }\n}`,
     python: `# 请在这里编写代码\nprint("Hello, World!")`,
-    go: `package main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}`,
-    csharp: `using System;\n\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello, World!");\n    }\n}`,
+    go: `package main\n\nimport "fmt"\n\nfunc main() {\n  fmt.Println("Hello, World!")\n}`,
+    csharp: `using System;\n\nclass Program {\n  static void Main() {\n    Console.WriteLine("Hello, World!");\n  }\n}`,
     javascript: `// 请在这里编写代码\nconsole.log("Hello, World!");`
   }
   return templates[lang] || templates.cpp
 }
 
+const getFunctionJavaStarter = () => {
+  const config = questionData.value?.functionConfig || {}
+  const className = String(config.className || 'Solution')
+  const methodName = String(config.methodName || 'solve')
+  const outputType = String(config.outputType || 'void')
+  const parameters = parseFunctionParameters(config.parameterConfig)
+    .map((parameter) => `${parameter.type} ${parameter.name}`)
+    .join(', ')
+
+  const returnHint = outputType === 'void'
+    ? '    // 请在这里实现核心函数'
+    : `    // 请在这里实现核心函数\n    return ${getJavaDefaultValue(outputType)};`
+
+  return `import java.util.*;\n\npublic class ${className} {\n  public ${outputType} ${methodName}(${parameters}) {\n${returnHint}\n  }\n}`
+}
+
+const parseFunctionParameters = (raw: unknown): Array<{ type: string; name: string }> => {
+  try {
+    const value = typeof raw === 'string' ? JSON.parse(raw) : raw
+    if (!Array.isArray(value)) return []
+    return value
+      .map((item) => ({ type: String(item?.type || ''), name: String(item?.name || '') }))
+      .filter((item) => item.type && item.name)
+  } catch {
+    return []
+  }
+}
+
+const getJavaDefaultValue = (type: string) => {
+  if (type === 'boolean') return 'false'
+  if (['byte', 'short', 'int', 'long', 'float', 'double'].includes(type)) return '0'
+  if (type === 'char') return "'\\0'"
+  return 'null'
+}
+
 watch(selectedLanguage, (newLang:any) => {
+  if (isFunctionQuestion.value && newLang !== 'java') {
+    selectedLanguage.value = 'java'
+    return
+  }
   if (editor) {
     const languageMap: Record<string, string> = {
       cpp: 'cpp', c: 'c', java: 'java', python: 'python',
@@ -539,6 +782,7 @@ watch(selectedLanguage, (newLang:any) => {
       }
     }
     monaco.editor.setModelLanguage(editor.getModel()!, languageMap[newLang] || 'cpp')
+    enforceTwoSpaceIndentation()
   }
 })
 
@@ -592,6 +836,7 @@ const setupJudgeSubscriptions = () => {
       }
       submitting.value = false
   })
+  enforceTwoSpaceIndentation()
 
   stopDebugJudgeListener = websocketService.on('debug-judge-result', (resultsBodey: any) => {
       console.log('📩 收到调试结果:', resultsBodey)
@@ -612,6 +857,37 @@ const setupJudgeSubscriptions = () => {
   })
 }
 
+const getCurrentEditorCode = () => editor?.getValue() || ''
+
+const toggleAiPanel = () => {
+  aiPanelVisible.value = !aiPanelVisible.value
+  if (aiPanelVisible.value) aiHasUpdate.value = false
+  nextTick(() => {
+    calculateWidths()
+    editor?.layout()
+  })
+}
+
+const closeAiPanel = () => {
+  aiPanelVisible.value = false
+  nextTick(() => {
+    calculateWidths()
+    editor?.layout()
+  })
+}
+
+const handleAiAdviceReady = () => {
+  if (!aiPanelVisible.value) aiHasUpdate.value = true
+  aiFlashing.value = false
+  requestAnimationFrame(() => {
+    aiFlashing.value = true
+  })
+  if (aiFlashTimer) window.clearTimeout(aiFlashTimer)
+  aiFlashTimer = window.setTimeout(() => {
+    aiFlashing.value = false
+  }, 1900)
+}
+
 const handleFormat = () => {
   if (!editor) { ElMessage.warning('编辑器未初始化'); return }
   try {
@@ -623,7 +899,13 @@ const handleFormat = () => {
   } catch (error) { console.error('格式化失败:', error); ElMessage.error('格式化失败') }
 }
 
-const handleRun = () => { ElMessage.info('运行功能开发中...') }
+// 运行：复用调试通道快速执行当前代码。未手动改动过用例时先重置为题目样例输入，
+// 结果仍经 WebSocket /queue/debug-judge-result-{userId} 回填到调试用例区。
+const handleRun = () => {
+  if (!editor) { ElMessage.warning('编辑器未初始化'); return }
+  if (!hasUserModified.value) initDebugCases()
+  handleDebug()
+}
 
 const clearResult = () => {
   judgeResult.value = null
@@ -635,18 +917,16 @@ const goBack = () => {
   const from = Array.isArray(route.query.from) ? route.query.from[0] : route.query.from
   if (from === '/favorites') {
     const favoriteId = Array.isArray(route.query.favoriteId) ? route.query.favoriteId[0] : route.query.favoriteId
-    router.replace({
+    navigateBack(router, {
       path: '/favorites',
       query: favoriteId ? { favoriteId } : undefined,
     })
     return
   }
-  if (from === '/review' || from === '/profile') {
-    router.replace(from)
-    return
-  }
-  if (window.history.state?.back) router.back()
-  else router.replace('/home')
+  navigateBack(
+    router,
+    from === '/review' || from === '/profile' || from === '/inbox' ? from : '/home',
+  )
 }
 
 // ====== 复制文本 ======
@@ -791,11 +1071,11 @@ const onResize = (e: MouseEvent) => {
   const containerWidth = containerRef.value.offsetWidth
   const rect = containerRef.value.getBoundingClientRect()
   const relativeX = e.clientX - rect.left
-  const minWidth = 300
-  const maxWidth = containerWidth - 300 - MARGIN_RIGHT
+  const availableWidth = containerWidth - getAiPanelSpace()
+  const minWidth = availableWidth < 900 ? 220 : 300
+  const maxWidth = Math.max(minWidth, availableWidth - 360)
   const newLeft = Math.max(minWidth, Math.min(relativeX, maxWidth))
   leftWidth.value = newLeft
-  rightWidth.value = containerWidth - newLeft - 6 - MARGIN_RIGHT
   nextTick(() => { editor?.layout() })
 }
 
@@ -857,6 +1137,10 @@ const startEditTestCase = (index: number) => {
 
 // 完成编辑
 const finishEditTestCase = () => {
+  const editingCase = editingTestCaseIndex.value === null
+    ? null
+    : debugTestCases.value[editingTestCaseIndex.value]
+  if (editingCase) editingCase.provided = false
   editingTestCaseIndex.value = null
   hasUserModified.value = true
   ElMessage.success('用例已更新')
@@ -875,9 +1159,6 @@ const selectTestCase = (index: number) => {
   if (editingTestCaseIndex.value !== null) return
 
   selectedTestCaseIndex.value = index
-  if (!debugTestCases.value[index].result) {
-    ElMessage.info('该用例尚未运行，请点击「调试运行」')
-  }
 }
 // 选中的测试用例（计算属性）
 const selectedTestCase = computed(() => {
@@ -894,10 +1175,12 @@ const initDebugCases = () => {
       input: s.inputData,
       expectedOutput: s.expectedOutput,
       result: null,
-      passed: null
+      passed: null,
+      isSample: true,
+      provided: false,
     }))
   } else {
-    debugTestCases.value = [{ input: '', expectedOutput: '', result: null, passed: null }]
+    debugTestCases.value = [{ input: '', expectedOutput: '', result: null, passed: null, isSample: false, provided: false }]
   }
   selectedTestCaseIndex.value = null
   hasUserModified.value = false  // ✅ 重置标记
@@ -911,7 +1194,14 @@ const clearSelectedTestCase = () => {
 
 // 添加用例
 const addTestCase = () => {
-  debugTestCases.value.push({ input: '', expectedOutput: '', result: null, passed: null })
+  debugTestCases.value.push({
+    input: '',
+    expectedOutput: '',
+    result: null,
+    passed: null,
+    isSample: false,
+    provided: false,
+  })
   selectedTestCaseIndex.value = debugTestCases.value.length - 1
   hasUserModified.value = true  // ✅ 标记用户已修改
 }
@@ -1010,15 +1300,79 @@ const handleDebug = async () => {
   }
 }
 
+const provideFunctionTests = async () => {
+  if (!isFunctionQuestion.value || !hasSubmittedQuestion.value) return
+  const customCases = debugTestCases.value.filter((testCase) => !testCase.isSample && !testCase.provided)
+  if (!customCases.length) {
+    ElMessage.info('请先添加一个自定义测试用例')
+    return
+  }
+  const incompleteIndex = customCases.findIndex(
+    (testCase) => !testCase.input.trim() || !testCase.expectedOutput.trim(),
+  )
+  if (incompleteIndex >= 0) {
+    ElMessage.warning(`请补全第 ${incompleteIndex + 1} 个自定义用例的输入和预期输出`)
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确认提供 ${customCases.length} 个测试用例？提交后将用于这道题的判题。`,
+      '提供测试',
+      { confirmButtonText: '确认提供', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+
+  providingTests.value = true
+  try {
+    const response: any = await questionApi.addFunctionTestCases(
+      Number(getCurrentQuestionId()),
+      customCases.map((testCase) => ({
+        input: testCase.input.trim(),
+        output: testCase.expectedOutput.trim(),
+      })),
+    )
+    customCases.forEach((testCase) => { testCase.provided = true })
+    ElMessage.success(`已提供 ${Number(response?.data ?? customCases.length)} 个测试用例`)
+  } catch (error) {
+    console.error('提供核心函数测试用例失败:', error)
+  } finally {
+    providingTests.value = false
+  }
+}
+
+const goRandomGenerator = () => {
+  if (!canGenerateRandomTests.value) return
+  router.push({
+    path: '/questions/function-test-generator',
+    query: { questionId: getCurrentQuestionId() },
+  })
+}
+
 // ====== 生命周期 ======
+let resizeFrame: number | undefined
+const handleWindowResize = () => {
+  if (resizeFrame) window.cancelAnimationFrame(resizeFrame)
+  resizeFrame = window.requestAnimationFrame(() => {
+    calculateWidths()
+    editor?.layout()
+  })
+}
+
 onMounted(async () => {
   await loadQuestion()
   setupJudgeSubscriptions()
   nextTick(() => { calculateWidths(); initEditor() })
-  window.addEventListener('resize', () => { calculateWidths(); nextTick(() => { editor?.layout() }) })
+  window.addEventListener('resize', handleWindowResize, { passive: true })
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleWindowResize)
+  if (resizeFrame) window.cancelAnimationFrame(resizeFrame)
+  stopResize()
+  stopResizeResult()
   if (editor) {
     const code = editor.getValue()
     if (code) saveCode(selectedLanguage.value, code)
@@ -1031,35 +1385,40 @@ onBeforeUnmount(() => {
   websocketService.unsubscribe('debug-judge-result')
   clearTimeout(formatTimeout)
   clearTimeout(saveTimeout)
+  if (realtimeAnalysisIdleTimer) window.clearTimeout(realtimeAnalysisIdleTimer)
+  pendingRealtimeChanges.length = 0
+  if (aiFlashTimer) window.clearTimeout(aiFlashTimer)
 })
 </script>
 
 <style scoped>
 .question-detail {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: var(--cw-bg-page);
   overflow: hidden;
 }
 
 .main-container {
   flex: 1;
+  position: relative;
   display: flex;
   overflow: hidden;
   min-height: 0;
-  height: calc(100vh - 56px);
+  height: 100%;
 }
 
 .left-panel {
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  min-width: 0;
   background: #fff;
   padding: 0 28px 12px;
-  height: calc(100vh - 80px);
-  min-height: calc(100vh - 80px);
-  max-height: calc(100vh - 80px);
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .left-panel::-webkit-scrollbar {
@@ -1067,19 +1426,19 @@ onBeforeUnmount(() => {
 }
 
 .left-panel::-webkit-scrollbar-thumb {
-  background: #d8dce5;
+  background: var(--cw-border);
   border-radius: 3px;
 }
 
 .right-panel {
-  flex-shrink: 0;
-  background: #1e1e1e;
+  flex: 1 1 0;
+  min-width: 0;
+  background: #ffffff;
   flex-direction: column;
   display: flex;
   overflow: hidden;
   height: 100%;
-  max-height: calc(100vh - 56px);
-  margin-right: 30px;
+  margin-right: 0;
   border-radius: 0 0 8px 0;
 }
 
@@ -1088,14 +1447,14 @@ onBeforeUnmount(() => {
 }
 
 .right-panel::-webkit-scrollbar-thumb {
-  background: #555;
+  background: var(--cw-border);
   border-radius: 2px;
 }
 
 .resize-handle {
   width: 6px;
   flex-shrink: 0;
-  background: #e4e7ed;
+  background: var(--cw-border);
   cursor: col-resize;
   display: flex;
   align-items: center;
@@ -1104,13 +1463,13 @@ onBeforeUnmount(() => {
 }
 
 .resize-handle:hover {
-  background: #409eff;
+  background: var(--cw-brand);
 }
 
 .handle-line {
   width: 2px;
   height: 40px;
-  background: #c0c4cc;
+  background: var(--cw-text-faint);
   border-radius: 2px;
   transition: background 0.2s;
 }
@@ -1124,25 +1483,81 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  background: #161616;
-  border-bottom: 1px solid #3c3c3c;
+  background: #ffffff;
+  border-bottom: 1px solid var(--cw-border);
   flex-shrink: 0;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.editor-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-entry-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.ai-entry-badge :deep(.el-badge__content.is-dot) {
+  top: 3px;
+  right: 5px;
+  border: 1px solid #ffffff;
+  background: #8b73ef;
+}
+
+.ai-entry-button {
+  color: #9b87f5;
+}
+
+.ai-entry-button:hover,
+.ai-entry-button.active {
+  border-color: var(--cw-accent-ai);
+  background: #f1effd;
+  color: var(--cw-accent-ai);
+}
+
+.ai-entry-button.flashing {
+  animation: ai-button-flash 0.95s ease-in-out 2;
+}
+
+@keyframes ai-button-flash {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(114, 87, 232, 0);
+    transform: scale(1);
+  }
+
+  20%, 60% {
+    box-shadow: 0 0 0 5px rgba(114, 87, 232, 0.24);
+    transform: scale(1.08);
+  }
+}
+
+.ai-panel-shell {
+  width: 390px;
+  min-width: 390px;
+  height: 100%;
+  margin-left: 8px;
+  flex: 0 0 auto;
+  overflow: hidden;
 }
 
 .editor-status {
   margin-left: auto;
   font-size: 12px;
-  color: #d5cdcd;
+  color: #7b828c;
   transition: color 0.3s;
 }
 
 .editor-status.is-typing {
-  color: #409eff;
+  color: var(--cw-brand);
 }
 
 .editor-container {
   flex: 1;
   min-height: 100px;
+  background: #ffffff;
 }
 
 .favorite-select {
@@ -1152,7 +1567,7 @@ onBeforeUnmount(() => {
 .result-wrapper {
   flex-shrink: 0;
   background: #fff;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid var(--cw-border);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1164,7 +1579,7 @@ onBeforeUnmount(() => {
 
 .result-resize-handle {
   height: 8px;
-  background: #e4e7ed;
+  background: var(--cw-border);
   cursor: ns-resize;
   display: flex;
   align-items: center;
@@ -1176,13 +1591,13 @@ onBeforeUnmount(() => {
 }
 
 .result-resize-handle:hover {
-  background: #409eff;
+  background: var(--cw-brand);
 }
 
 .result-handle-line {
   width: 40px;
   height: 3px;
-  background: #c0c4cc;
+  background: var(--cw-text-faint);
   border-radius: 2px;
   transition: background 0.2s;
 }
@@ -1191,20 +1606,43 @@ onBeforeUnmount(() => {
   background: #fff;
 }
 
-@media (max-width: 1024px) {
-  .main-container {
-    flex-direction: column;
+@media (max-width: 1280px) {
+  .ai-panel-shell {
+    position: absolute;
+    z-index: 30;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(390px, calc(100% - 16px));
+    min-width: 0;
+    height: 100%;
+    margin-left: 0;
+    box-shadow: -10px 0 28px rgba(18, 20, 24, 0.16);
   }
+}
 
-  .left-panel,
-  .right-panel {
-    width: 100% !important;
-    height: auto;
-    min-height: 300px;
+@media (max-width: 760px) {
+  .left-panel {
+    padding-right: 16px;
+    padding-left: 16px;
   }
 
   .resize-handle {
+    width: 4px;
+  }
+
+  .editor-toolbar {
+    gap: 6px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .editor-status {
     display: none;
+  }
+
+  .ai-panel-shell {
+    width: 100%;
   }
 }
 </style>

@@ -3,8 +3,7 @@
     <header class="navbar">
       <div class="nav-left">
         <button class="logo" type="button" @click="navigateTopLevel(router, '/home')">
-          <span class="logo-mark">C</span>
-          <span>CodeWise</span>
+          <BrandLogo :size="28" />
         </button>
         <nav>
           <button type="button" @click="navigateTopLevel(router, '/home')">题库</button>
@@ -177,7 +176,7 @@ async function submitPost() {
         postContent: content,
         tags: postForm.tags,
       })
-      ElMessage.success('帖子已修改')
+      ElMessage.success('帖子修改已提交审核，审核通过后会重新公开')
       await router.replace({ name: 'discussion-detail', params: { postId: editingPostId.value } })
       return
     }
@@ -185,7 +184,7 @@ async function submitPost() {
     const requestIdRes: any = await communityApi.getRequestId()
     const requestId = typeof requestIdRes === 'string' ? requestIdRes : requestIdRes?.message
     if (!requestId) {
-      ElMessage.error('请求标识获取失败')
+      ElMessage.error('操作失败，请稍后重试')
       return
     }
 
@@ -200,7 +199,7 @@ async function submitPost() {
       requestId,
     )
 
-    ElMessage.success('帖子已发布')
+    ElMessage.success('帖子已提交审核，审核通过后会公开展示')
     await navigateTopLevel(router, '/discuss')
   } catch (error) {
     console.error('发布帖子失败:', error)
@@ -228,7 +227,7 @@ async function loadEditingPost() {
     postForm.tags = Array.isArray(data.tags) ? [...data.tags] : []
   } catch (error) {
     console.error('加载待修改帖子失败:', error)
-    ElMessage.error('帖子加载失败')
+    ElMessage.error('帖子加载失败，请稍后重试')
     await router.replace({ name: 'discussion-detail', params: { postId: editingPostId.value } })
   } finally {
     loadingPost.value = false
@@ -251,8 +250,8 @@ onMounted(loadEditingPost)
 .compose-page {
   min-height: 100vh;
   background: linear-gradient(180deg, #f7f8fb 0%, #f3f5f8 100%);
-  color: #262626;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--cw-text-1);
+  font-family: var(--cw-font-sans);
 }
 
 .navbar {
@@ -265,7 +264,7 @@ onMounted(loadEditingPost)
   align-items: center;
   justify-content: space-between;
   background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid #e8ecf1;
+  border-bottom: 1px solid var(--cw-border);
 }
 
 .nav-left,
@@ -291,7 +290,7 @@ onMounted(loadEditingPost)
   font: inherit;
   cursor: pointer;
   gap: 9px;
-  color: #262626;
+  color: var(--cw-text-1);
   font-size: 18px;
   font-weight: 700;
 }
@@ -302,7 +301,7 @@ onMounted(loadEditingPost)
   display: grid;
   place-items: center;
   border-radius: 6px;
-  background: #ffa116;
+  background: var(--cw-brand);
   color: #fff;
 }
 
@@ -317,11 +316,11 @@ onMounted(loadEditingPost)
 
 .nav-left nav button:hover,
 .nav-left nav button.active {
-  color: #d98200;
+  color: var(--cw-brand-dark);
 }
 
 .nav-left nav button.active {
-  border-bottom: 2px solid #ffa116;
+  border-bottom: 2px solid var(--cw-brand);
 }
 
 .avatar-entry {
@@ -342,7 +341,7 @@ onMounted(loadEditingPost)
 .compose-card {
   height: calc(100vh - 120px);
   min-height: 620px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--cw-border);
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 14px 40px rgba(15, 23, 42, 0.05);
@@ -358,7 +357,7 @@ onMounted(loadEditingPost)
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  border-bottom: 1px solid #edf0f3;
+  border-bottom: 1px solid var(--cw-bg-subtle);
 }
 
 .title-wrap {
@@ -393,7 +392,7 @@ onMounted(loadEditingPost)
 .topic-select :deep(.el-select__wrapper) {
   min-height: 40px;
   border-radius: 999px;
-  background: #f7f8fa;
+  background: var(--cw-bg-page);
   box-shadow: none;
 }
 
@@ -410,7 +409,7 @@ onMounted(loadEditingPost)
   display: flex;
   align-items: center;
   gap: 10px;
-  border-bottom: 1px solid #edf0f3;
+  border-bottom: 1px solid var(--cw-bg-subtle);
   overflow-x: auto;
 }
 
@@ -428,7 +427,7 @@ onMounted(loadEditingPost)
 }
 
 .tool-chip:hover {
-  color: #d98200;
+  color: var(--cw-brand-dark);
   background: #fff6ea;
   transform: translateY(-1px);
 }
@@ -452,7 +451,7 @@ onMounted(loadEditingPost)
 .editor-column {
   min-width: 0;
   min-height: 0;
-  border-right: 1px solid #edf0f3;
+  border-right: 1px solid var(--cw-bg-subtle);
   overflow: hidden;
 }
 
@@ -465,7 +464,7 @@ onMounted(loadEditingPost)
   outline: none;
   resize: none;
   color: #2d3137;
-  font: 15px/1.8 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  font: 15px/1.8 'JetBrains Mono', 'SFMono-Regular', var(--cw-font-mono);
 }
 
 .editor-area::placeholder {
@@ -477,7 +476,7 @@ onMounted(loadEditingPost)
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: #fbfcfd;
+  background: var(--cw-bg-page);
 }
 
 .preview-header {
@@ -486,9 +485,9 @@ onMounted(loadEditingPost)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #6b7280;
+  color: var(--cw-text-3);
   font-size: 13px;
-  border-bottom: 1px solid #edf0f3;
+  border-bottom: 1px solid var(--cw-bg-subtle);
 }
 
 .preview-body {
@@ -512,7 +511,7 @@ onMounted(loadEditingPost)
 
 .tips-card p {
   margin: 0 0 8px;
-  color: #6b7280;
+  color: var(--cw-text-3);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -521,7 +520,7 @@ onMounted(loadEditingPost)
   padding: 2px 6px;
   border-radius: 4px;
   background: #f3f4f6;
-  color: #c2410c;
+  color: var(--cw-danger);
 }
 
 .tip-text {
@@ -529,7 +528,7 @@ onMounted(loadEditingPost)
 }
 
 .markdown-body {
-  color: #30343b;
+  color: var(--cw-text-1);
   font-size: 15px;
   line-height: 1.85;
   overflow-wrap: anywhere;
@@ -540,7 +539,7 @@ onMounted(loadEditingPost)
 .markdown-body :deep(h3),
 .markdown-body :deep(h4) {
   margin: 24px 0 12px;
-  color: #202124;
+  color: var(--cw-text-1);
   line-height: 1.4;
 }
 
@@ -550,7 +549,7 @@ onMounted(loadEditingPost)
 
 .markdown-body :deep(h2) {
   padding-bottom: 8px;
-  border-bottom: 1px solid #edf0f3;
+  border-bottom: 1px solid var(--cw-bg-subtle);
   font-size: 20px;
 }
 
@@ -571,7 +570,7 @@ onMounted(loadEditingPost)
 .markdown-body :deep(blockquote) {
   margin: 18px 0;
   padding: 10px 14px;
-  border-left: 3px solid #ffa116;
+  border-left: 3px solid var(--cw-brand);
   background: #fff9f0;
   color: #5c6470;
 }
@@ -588,15 +587,15 @@ onMounted(loadEditingPost)
   padding: 2px 5px;
   border-radius: 4px;
   background: #f1f3f5;
-  color: #c7254e;
-  font-family: 'JetBrains Mono', Consolas, monospace;
+  color: var(--cw-danger);
+  font-family: var(--cw-font-mono);
   font-size: 13px;
 }
 
 .markdown-body :deep(pre code) {
   padding: 0;
   background: transparent;
-  color: #30343b;
+  color: var(--cw-text-1);
 }
 
 .markdown-body :deep(.katex-display) {
@@ -654,7 +653,7 @@ onMounted(loadEditingPost)
   .editor-column {
     min-height: 480px;
     border-right: 0;
-    border-bottom: 1px solid #edf0f3;
+    border-bottom: 1px solid var(--cw-bg-subtle);
   }
 
   .preview-column {

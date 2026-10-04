@@ -12,10 +12,7 @@
 			<!-- Logo 和标题 -->
 			<div class="register-header">
 				<div class="logo">
-					<el-icon :size="40" color="#409eff">
-						<Edit />
-					</el-icon>
-					<span class="logo-text">CodeWise</span>
+					<BrandLogo :size="40" />
 				</div>
 				<h2>创建账号</h2>
 				<p class="subtitle">开始你的编程之旅</p>
@@ -129,7 +126,7 @@
 import { ref, reactive, computed, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, User, Message, Phone, Lock, Key } from '@element-plus/icons-vue'
+import { User, Message, Phone, Lock, Key } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import userApi from '@/api/userApi'
 // ====== 路由 ======
@@ -203,10 +200,6 @@ const registerRules: FormRules = {
 		{ required: true, message: '请输入邮箱地址', trigger: 'blur' },
 		{ type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
 	],
-	phone: [
-		{ required: true, message: '请输入手机号', trigger: 'blur' },
-		{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
-	],
 	password: [
 		{ required: true, message: '请输入密码', trigger: 'blur' },
 		{ min: 6, max: 20, message: '密码长度为 6-20 位', trigger: 'blur' }
@@ -252,7 +245,7 @@ const sendCaptcha = async () => {
 			countdownSeconds.value = 60
 			captchaButtonText.value = `${countdownSeconds.value}s`
 
-			ElMessage.success('验证码已发送到您的手机')
+			ElMessage.success('验证码已发送到您的邮箱')
 
 			countdownTimer = setInterval(() => {
 				// ✅ 每秒减 1
@@ -328,12 +321,10 @@ onBeforeUnmount(() => {
 	if (countdownTimer) {
 		clearInterval(countdownTimer)
 		countdownTimer = null
-		console.log('🧹 定时器已清除')
 	}
 	if (resetCountdownTimer) {
 		clearInterval(resetCountdownTimer)
 		resetCountdownTimer = null
-		console.log('🧹 重置密码定时器已清除')
 	}
 })
 
@@ -361,12 +352,10 @@ onBeforeUnmount(() => {
 	if (countdownTimer) {
 		clearInterval(countdownTimer)
 		countdownTimer = null
-		console.log('🧹 定时器已清除')
 	}
 	if (resetCountdownTimer) {
 		clearInterval(resetCountdownTimer)
 		resetCountdownTimer = null
-		console.log('🧹 重置密码定时器已清除')
 	}
 })
 
@@ -382,7 +371,7 @@ const handleRegister = async () => {
 			const res: any = await userApi.register(registerForm.email, registerForm.captcha)
 			if (res.code === 200) {
 				ElMessage.success('注册成功，请登录')
-
+				await router.replace('/login')
 			}
 
 		} catch (error) {
@@ -397,12 +386,10 @@ onBeforeUnmount(() => {
 	if (countdownTimer) {
 		clearInterval(countdownTimer)
 		countdownTimer = null
-		console.log('🧹 定时器已清除')
 	}
 	if (resetCountdownTimer) {
 		clearInterval(resetCountdownTimer)
 		resetCountdownTimer = null
-		console.log('🧹 重置密码定时器已清除')
 	}
 })
 
@@ -423,7 +410,7 @@ const sendResetCaptcha = async () => {
 
 	try {
 		// 调用发送重置密码验证码的API，请根据实际后端接口调整
-		const response: any = await userApi.updataPasswordForEmail(resetForm.email,resetForm.password)
+        const response: any = await userApi.updataPasswordForEmail(resetForm.email)
 		if (response.code === 200) {
 			isResetCaptchaDisabled.value = true
 			resetCountdownSeconds.value = 60
@@ -459,7 +446,7 @@ const handleResetPassword = async () => {
 		resetLoading.value = true
 		try {
 			// 调用重置密码的API，请根据实际后端接口调整
-			const res: any = await userApi.updatefromcode(resetForm.email, resetForm.captcha)
+            const res: any = await userApi.updatefromcode(resetForm.email, resetForm.captcha, resetForm.password)
 			if (res.code === 200) {
 				ElMessage.success('密码修改成功，请登录')
 				handleResetDialogClose()
@@ -563,7 +550,7 @@ const goToLogin = () => {
 .logo-text {
 	font-size: 28px;
 	font-weight: 700;
-	background: linear-gradient(135deg, #409eff, #36d399);
+	background: linear-gradient(135deg, var(--cw-brand), var(--cw-success));
 	-webkit-background-clip: text;
 	-webkit-text-fill-color: transparent;
 	background-clip: text;
@@ -572,13 +559,13 @@ const goToLogin = () => {
 .register-header h2 {
 	font-size: 24px;
 	font-weight: 600;
-	color: #303133;
+	color: var(--cw-text-1);
 	margin: 0 0 4px 0;
 }
 
 .register-header .subtitle {
 	font-size: 14px;
-	color: #909399;
+	color: var(--cw-text-3);
 	margin: 0;
 }
 
@@ -597,7 +584,7 @@ const goToLogin = () => {
 }
 
 .register-form :deep(.el-input__wrapper:hover) {
-	box-shadow: 0 0 0 1px #409eff;
+	box-shadow: 0 0 0 1px var(--cw-brand);
 }
 
 .register-form :deep(.el-input__wrapper.is-focus) {
@@ -648,7 +635,7 @@ const goToLogin = () => {
 .register-footer {
 	text-align: center;
 	font-size: 14px;
-	color: #909399;
+	color: var(--cw-text-3);
 	margin-top: 8px;
 }
 

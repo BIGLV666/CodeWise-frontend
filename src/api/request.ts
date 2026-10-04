@@ -12,6 +12,67 @@ const request: AxiosInstance = axios.create({
   withCredentials: true,
 })
 
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    /**
+     * 静默请求：失败时不弹全局错误提示。
+     * 用于后台轮询（未读数、状态轮询）——它们失败用户无感，不该反复打扰。
+     */
+    silent?: boolean
+  }
+}
+
+let handlingUnauthorized = false
+
+/**
+ * 同一文案的静默窗口：并发请求同时失败时只弹一条，避免弹幕式刷屏。
+ * 后端整体不可用（连不上/5xx）时用更长的窗口，让一屏请求塌缩成一条提示。
+ */
+const DUPLICATE_WINDOW_MS = 3000
+const SERVICE_DOWN_WINDOW_MS = 10000
+
+let lastNotice = { text: '', at: 0 }
+
+function notifyError(text: string, windowMs = DUPLICATE_WINDOW_MS) {
+  const now = Date.now()
+  if (lastNotice.text === text && now - lastNotice.at < windowMs) return
+  lastNotice = { text, at: now }
+  ElMessage.error(text)
+}
+
+/** 把 HTTP/网络层错误翻译成面向用户的提示。 */
+function resolveErrorNotice(error: AxiosError): { text: string; serviceDown: boolean } {
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+    return { text: '请求超时，请稍后重试', serviceDown: false }
+  }
+  if (!error.response) {
+    // 没有响应 = 服务连不上（后端未启动、网络断开、被网关拦截）
+    return { text: '服务暂时无法连接，请稍后重试', serviceDown: true }
+  }
+
+  const status = error.response.status
+  switch (status) {
+    case 400:
+      return { text: '请求有误，请检查后重试', serviceDown: false }
+    case 403:
+      return { text: '没有权限执行该操作', serviceDown: false }
+    case 404:
+      return { text: '请求的内容不存在或已被删除', serviceDown: false }
+    case 408:
+      return { text: '请求超时，请稍后重试', serviceDown: false }
+    case 429:
+      return { text: '操作太频繁，请稍后再试', serviceDown: false }
+    case 500:
+      return { text: '服务出了点问题，请稍后重试', serviceDown: true }
+    case 502:
+    case 503:
+    case 504:
+      return { text: '服务正在升级或维护，请稍后重试', serviceDown: true }
+    default:
+      return { text: '请求失败，请稍后重试', serviceDown: status >= 500 }
+  }
+}
+
 // 请求拦截器
 request.interceptors.request.use(
   (config: AxiosRequestConfig) => {
@@ -25,9 +86,6 @@ request.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-    console.log('请求URL:', config.baseURL, config.url)
-    console.log('请求参数:', config.params,config.data)
-
     return config as any
   },
   (error: AxiosError) => {
@@ -38,57 +96,68 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
  (response: AxiosResponse) => {
-    console.log('📌 响应拦截器收到:', JSON.stringify(response.data, null, 2))
     const res = response.data
     if (res.code !== 200) {
-      ElMessage.error(res.message || '请求失败')
-      return Promise.reject(new Error(res.message || '请求失败'))
+      const message = res.message || '操作失败，请稍后重试'
+      if (!response.config?.silent) notifyError(message)
+      return Promise.reject(new Error(message))
     }
-    console.log('📌 响应拦截器返回:', res)
     return res
   },
   (error: AxiosError) => {
-    let message = '请求失败'
-    
-    if (error.response) {
-      const status = error.response.status
-      switch (status) {
-        case 400:
-          message = '请求错误'
-          break
-        case 401:
-          message = '未授权，请登录'
-          const userStore = useUserStore()
-          userStore.logout()
-          router.replace('/login')
-          break
-        case 403:
-          message = '拒绝访问'
-          break
-        case 404:
-          message = '请求地址出错'
-          break
-        case 500:
-          message = '服务器内部错误'
-          break
-        case 502:
-          message = '网关错误'
-          break
-        default:
-          message = `连接错误${status}`
+    if (error.response?.status === 401) {
+      if (!handlingUnauthorized) {
+        handlingUnauthorized = true
+        const userStore = useUserStore()
+        userStore.logout()
+        ElMessage.closeAll()
+        ElMessage.warning('登录状态已失效，请重新登录')
+        router.replace({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
+          .finally(() => window.setTimeout(() => { handlingUnauthorized = false }, 1000))
       }
-    } else if (error.request) {
-      message = '网络错误'
-    } else {
-      message = '请求失败'
+      return Promise.reject(error)
     }
 
-    ElMessage.error(message)
+    if (!error.config?.silent) {
+      const { text, serviceDown } = resolveErrorNotice(error)
+      notifyError(text, serviceDown ? SERVICE_DOWN_WINDOW_MS : DUPLICATE_WINDOW_MS)
+    }
     return Promise.reject(error)
   }
 )
 
 export default request
+
+/**
+ * 后端统一响应信封。
+ * 注意：响应拦截器返回的是整个信封而非 data，
+ * 所以 request.get<T>() 的实际结果是 ApiResult<T>，需要用 unwrap 取值。
+ */
+export interface ApiResult<T = any> {
+  code: number
+  message: string
+  data: T
+}
+
+/** 从响应信封中取业务数据，兼容个别已被上游解包的返回。 */
+export const unwrap = <T,>(response: any, fallback: T): T =>
+  (response?.data ?? response ?? fallback) as T
+
+/**
+ * 从任意错误里取面向用户的文案。
+ * 优先后端返回的 message（本身就是写给用户看的），
+ * axios 自带的英文技术信息（"Request failed with status code 502" 等）一律丢弃，用兜底文案代替。
+ */
+export function errorText(error: unknown, fallback: string): string {
+  const dataMessage = (error as AxiosError<any>)?.response?.data?.message
+  if (typeof dataMessage === 'string' && dataMessage.trim()) return dataMessage
+
+  if (error instanceof Error && !(error as AxiosError).isAxiosError) {
+    const text = error.message?.trim()
+    if (text) return text
+  }
+  return fallback
+}
 
 // 导出常用请求方法
 export const get = <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {

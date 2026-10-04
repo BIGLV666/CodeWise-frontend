@@ -1,6 +1,6 @@
 <template>
   <div class="favorites-view">
-    <FavoritesNavBar v-model="keyword" @go-home="goHome" @go-discuss="goDiscuss" @go-review="goReview" />
+    <AppNavBar active="home" show-search v-model:search="keyword" />
 
     <div class="main-container">
       <FavoritesSidebar
@@ -72,7 +72,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import FavoritesNavBar from '@/components/favorites/FavoritesNavBar.vue'
+import AppNavBar from '@/components/layout/AppNavBar.vue'
 import FavoritesProblemList from '@/components/favorites/FavoritesProblemList.vue'
 import FavoritesProgressCard from '@/components/favorites/FavoritesProgressCard.vue'
 import FavoritesSidebar from '@/components/favorites/FavoritesSidebar.vue'
@@ -231,7 +231,7 @@ const loadFavorites = async () => {
     favorites.value = []
     problems.value = []
     selectedFavoriteId.value = ''
-    ElMessage.error('收藏夹加载失败')
+    ElMessage.error('收藏夹加载失败，请稍后重试')
   } finally {
     favoritesLoading.value = false
   }
@@ -268,7 +268,7 @@ const createFavorite = async () => {
     const requestIdRes: any = await reviewApi.getCreateRequestId()
     const requestId = typeof requestIdRes === 'string' ? requestIdRes : requestIdRes?.message
     if (!requestId) {
-      ElMessage.error('创建请求 ID 获取失败')
+      ElMessage.error('操作失败，请稍后重试')
       return
     }
     await reviewApi.createFavorite(value.trim(), requestId)
@@ -401,9 +401,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f8f9fb;
-  color: #1a1a2e;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--cw-bg-page);
+  color: var(--cw-text-1);
+  font-family: var(--cw-font-sans);
 }
 
 .main-container {

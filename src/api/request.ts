@@ -100,7 +100,11 @@ request.interceptors.response.use(
     if (res.code !== 200) {
       const message = res.message || '操作失败，请稍后重试'
       if (!response.config?.silent) notifyError(message)
-      return Promise.reject(new Error(message))
+      // 把业务码一并挂到错误上，便于调用方按码分支（如 AI 实时分析的
+      // CODE_CHANGE_RANGE_INVALID 需要重建快照，而不是盲目重试）。
+      const bizError = new Error(message) as Error & { bizCode?: number }
+      bizError.bizCode = res.code
+      return Promise.reject(bizError)
     }
     return res
   },

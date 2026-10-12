@@ -412,6 +412,11 @@ let saveTimeout: any = null
 let realtimeAnalysisIdleTimer: number | undefined
 let realtimeAnalysisSending = false
 let realtimeAnalysisInitializedQuestionId = ''
+let realtimeAnalysisRetryCount = 0
+/** 实时分析：服务端代码快照与本地增量不一致（AiErrorCode.CODE_CHANGE_RANGE_INVALID）。 */
+const REALTIME_CODE_CHANGE_INVALID = 4000618
+/** 实时分析上报的最大重试次数，超过即暂停，避免服务端异常时无限重试刷屏。 */
+const REALTIME_MAX_RETRY = 3
 const pendingRealtimeChanges: RealtimeAnalysisChange[] = []
 
 const toLocalDateTime = (date = new Date()) => {
@@ -468,9 +473,28 @@ const flushRealtimeAnalysis = async () => {
   realtimeAnalysisSending = true
   try {
     await aiApi.reportRealtimeAnalysis(payload)
+    realtimeAnalysisRetryCount = 0
   } catch (error) {
+    // 服务端保存的是"完整代码快照"，增量按其 offset 应用到快照上（非幂等）。
+    // 一旦快照与本地增量不一致（服务端重启/快照过期/上一批已部分生效），这批
+    // offset 永远不会被接受：继续塞回队列重发只会无限循环、刷屏并打爆接口。
+    if ((error as { bizCode?: number })?.bizCode === REALTIME_CODE_CHANGE_INVALID) {
+      pendingRealtimeChanges.length = 0
+      realtimeAnalysisRetryCount = 0
+      realtimeAnalysisInitializedQuestionId = ''
+      void initializeRealtimeAnalysis()
+      return
+    }
+    realtimeAnalysisRetryCount += 1
+    if (realtimeAnalysisRetryCount > REALTIME_MAX_RETRY) {
+      // 服务端持续不可用：停止重试并丢弃本批，用户下次编辑会重新累计。
+      pendingRealtimeChanges.length = 0
+      realtimeAnalysisRetryCount = 0
+      console.warn('实时分析上报连续失败，已暂停上报')
+      return
+    }
     pendingRealtimeChanges.unshift(...batch)
-    console.warn('上报实时分析增量失败:', error)
+    console.warn(`上报实时分析增量失败（第 ${realtimeAnalysisRetryCount} 次），稍后重试`, error)
     scheduleRealtimeAnalysis()
   } finally {
     realtimeAnalysisSending = false

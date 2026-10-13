@@ -31,7 +31,7 @@
           :selected-test-case-index="selectedTestCaseIndex"
           :editing-test-case-index="editingTestCaseIndex"
           :debugging="debugging"
-          :can-provide-tests="isFunctionQuestion && hasSubmittedQuestion"
+          :can-provide-tests="isFunctionQuestion && userStore.isAdmin && hasSubmittedQuestion"
           :providing-tests="providingTests"
           :can-generate-random="canGenerateRandomTests"
           :initial-solution-id="initialSolutionId"
@@ -209,18 +209,8 @@ const userStore = useUserStore()
 
 // ====== 数据 ======
 const questionData = ref<any>(null)
-const currentUserRoleId = ref<number | null>(
-  userStore.userDto?.roleId === undefined ? null : Number(userStore.userDto.roleId),
-)
 const isFunctionQuestion = computed(() => questionData.value?.questionType === 'FUNCTION')
-const canGenerateRandomTests = computed(() => {
-  if (!isFunctionQuestion.value) return false
-  const currentUserId = userStore.userDto?.userId || localStorage.getItem('userId') || ''
-  const creatorId = questionData.value?.createUserId
-  const isCreator = creatorId !== undefined && creatorId !== null && String(creatorId) === String(currentUserId)
-  const isAdmin = currentUserRoleId.value === 2
-  return isCreator || isAdmin
-})
+const canGenerateRandomTests = computed(() => isFunctionQuestion.value && userStore.isAdmin)
 const routeTab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab
 const initialSolutionId = String(
   (Array.isArray(route.query.solutionId) ? route.query.solutionId[0] : route.query.solutionId) || '',
@@ -260,7 +250,7 @@ const getCurrentQuestionId = () => {
   return Array.isArray(questionId) ? questionId[0] : questionId
 }
 
-const getCurrentUserId = () => localStorage.getItem('userId') || 'guest'
+const getCurrentUserId = () => String(userStore.userDto?.userId ?? localStorage.getItem('userId') ?? 'guest')
 
 const getCodeSaveKey = (questionId: string, language: string) => {
   return `${SAVE_KEY_PREFIX}${getCurrentUserId()}_${questionId}_${language}`
@@ -325,12 +315,15 @@ const onLanguageChange = (lang: string) => {
   }
 }
 // ====== 提交代码 ======
-const getSubmitScene = () => {
+const getSubmitScene = (): 'NORMAL' | 'REVIEW' | 'PLAN' => {
   const from = Array.isArray(route.query.from) ? route.query.from[0] : route.query.from
-  return from === '/review' ? 'REVIEW' : undefined
+  if (from === '/review') return 'REVIEW'
+  if (from === '/plan') return 'PLAN'
+  return 'NORMAL'
 }
 
 const handleSubmit = async () => {
+  if (submitting.value) return
   if (!editor) { ElMessage.warning('编辑器未初始化'); return }
   const code = editor.getValue()
   if (!code.trim()) { ElMessage.warning('请先编写代码'); return }
@@ -352,7 +345,7 @@ const handleSubmit = async () => {
   judgeProgress.value = 0
 
   try {
-    const response: any = await questionApi.submitCode({
+    const response = await questionApi.submitCode({
       code: code,
       language: selectedLanguage.value,
       questionId: Number(questionId),
@@ -600,20 +593,7 @@ const loadSubmissions = async () => {
   }
 }
 
-const loadCurrentUserRole = async () => {
-  const userId = localStorage.getItem('userId')
-  if (!userId || currentUserRoleId.value !== null) return
-  try {
-    const response: any = await userApi.getUserById(userId)
-    const user = response?.data ?? response
-    if (user?.roleId !== undefined) {
-      currentUserRoleId.value = Number(user.roleId)
-      userStore.updateUser({ ...user, userId: String(user.userId ?? userId) })
-    }
-  } catch (error) {
-    console.warn('加载当前用户角色失败:', error)
-  }
-}
+const loadCurrentUserRole = () => userStore.ensureRoleId()
 
 const handleTabClick = (tab: any) => {
   if (tab.paneName === 'submissions') {
@@ -824,15 +804,14 @@ const parseErrorMsg = (errorMsg: string) => {
 }
 
 const parsedTestData = computed<ParsedTestData>(() => {
-  if (!judgeResult.value) return { input: '', expected: '', actual: '' }
-  if (judgeResult.value.inputData) {
-    return {
-      input: judgeResult.value.inputData,
-      expected: judgeResult.value.expectedOutput || '',
-      actual: judgeResult.value.userOutput || ''
-    }
+  const result = judgeResult.value
+  if (!result) return { input: '', expected: '', actual: '' }
+  const fallback = parseErrorMsg(result.error || '')
+  return {
+    input: result.inputData ?? fallback.input,
+    expected: result.expectedOutput ?? fallback.expected,
+    actual: result.actual ?? result.userOutput ?? fallback.actual,
   }
-  return parseErrorMsg(judgeResult.value.error || '')
 })
 // ====== 调试相关 ======
 const hasUserModified = ref(false)  // ✅ 新增：标记用户是否手动修改过用例
@@ -841,43 +820,64 @@ let stopJudgeListener: (() => void) | undefined
 let stopDebugJudgeListener: (() => void) | undefined
 
 const setupJudgeSubscriptions = () => {
-  const userId = localStorage.getItem('userId')
-  if (!userId) return
+  stopJudgeListener?.()
+  stopDebugJudgeListener?.()
+  websocketService.unsubscribe('judge-result')
+  websocketService.unsubscribe('debug-judge-result')
+  const userId = getCurrentUserId()
+  if (!userId || userId === 'guest') return
 
   websocketService.subscribe('judge-result', `/queue/judge-result-${userId}`)
   websocketService.subscribe('debug-judge-result', `/queue/debug-judge-result-${userId}`)
 
   stopJudgeListener = websocketService.on('judge-result', (data: any) => {
-      console.log('📩 收到判题结果:', data)
-      judgeResult.value = data.result
-      judgeProgress.value = 100
-      if (data.submitStatus === 'AC') {
-
-      } else if (data.submitStatus === 'PENDING') {
-
-      } else {
-        ElMessage.error(`❌ ${statusMap[data.submitStatus]?.text || data.submitStatus}`)
-      }
-      submitting.value = false
+    console.log('📩 收到判题结果:', data)
+    if (data?.userId != null && String(data.userId) !== userId) return
+    const result = data?.result ?? data
+    if (!result || typeof result !== 'object' || Array.isArray(result)
+      || typeof result.submitStatus !== 'string' || !result.submitStatus) return
+    judgeResult.value = result
+    judgeProgress.value = 100
+    const status = result.submitStatus
+    if (status && status !== 'AC' && status !== 'PENDING') {
+      ElMessage.error(`❌ ${statusMap[status]?.text || status}`)
+    }
+    submitting.value = false
   })
   enforceTwoSpaceIndentation()
 
-  stopDebugJudgeListener = websocketService.on('debug-judge-result', (resultsBodey: any) => {
-      console.log('📩 收到调试结果:', resultsBodey)
-      const results = resultsBodey.result || []
+  stopDebugJudgeListener = websocketService.on('debug-judge-result', (message: any) => {
+    console.log('📩 收到调试结果:', message)
+    if (!debugging.value || (message?.userId != null && String(message.userId) !== userId)) return
+    const results = Array.isArray(message?.result)
+      ? message.result
+      : Array.isArray(message?.results)
+        ? message.results
+        : null
+    if (!results?.length || !results.every((result: unknown) => {
+      if (!result || typeof result !== 'object' || Array.isArray(result)) return false
+      const record = result as JudgeReturnRecordDto
+      return typeof record.submitStatus === 'string' && Boolean(record.submitStatus)
+        && (record.userId == null || String(record.userId) === userId)
+        && (record.userOutput == null || typeof record.userOutput === 'string')
+    })) {
+      console.warn('忽略格式异常的调试结果消息')
+      return
+    }
 
-      debugTestCases.value.forEach((tc: any, index: number) => {
-        if (index < results.length) {
-          tc.result = results[index]
-          tc.passed = tc.expectedOutput?.trim() === results[index].userOutput?.trim()
-        }
-      })
-
-      const firstResultIndex = debugTestCases.value.findIndex((tc: any) => tc.result)
-      if (firstResultIndex !== -1) {
-        selectedTestCaseIndex.value = firstResultIndex
+    debugTestCases.value.forEach((tc: any, index: number) => {
+      const result = results[index]
+      if (result) {
+        tc.result = result
+        tc.passed = tc.expectedOutput?.trim()
+          ? result.submitStatus === 'AC' && tc.expectedOutput.trim() === result.userOutput?.trim()
+          : null
       }
-      debugging.value = false
+    })
+
+    const firstResultIndex = debugTestCases.value.findIndex((tc: any) => tc.result)
+    if (firstResultIndex !== -1) selectedTestCaseIndex.value = firstResultIndex
+    debugging.value = false
   })
 }
 
@@ -1260,6 +1260,7 @@ watch(sampleCases, (newSamples) => {
 }, { deep: true })
 // ====== 调试运行 ======
 const handleDebug = async () => {
+  if (debugging.value) return
   // 1. 检查用例输入
   const emptyCases = debugTestCases.value.some(tc => !tc.input.trim())
   if (emptyCases) {
@@ -1289,8 +1290,8 @@ const handleDebug = async () => {
 
   try {
     // 4. 发送调试请求
-    const response: any = await questionApi.debug({
-      userId: localStorage.getItem('userId') || '',
+    const response = await questionApi.debug({
+      userId: getCurrentUserId(),
       code: code,
       language: selectedLanguage.value,
       questionId: Number(route.query.questionId),
@@ -1300,32 +1301,23 @@ const handleDebug = async () => {
       }))
     })
 
-    // 5. 处理响应
     if (response.code === 200) {
       ElMessage.success('提交成功，请稍候，请勿刷新页面')
-      const results = response.data || []
-      debugTestCases.value.forEach((tc, index) => {
-        if (index < results.length) {
-          tc.result = results[index]
-          tc.passed = tc.expectedOutput?.trim() === results[index].userOutput?.trim()
-        }
-      })
-     
     } else {
+      debugging.value = false
       ElMessage.error(response.message || '调试失败')
     }
   } catch (error) {
+    debugging.value = false
     console.error('调试失败:', error)
     ElMessage.error('调试请求失败')
   } finally {
-    debugging.value = false
-    // 6. 恢复用户修改标记
     hasUserModified.value = wasUserModified
   }
 }
 
 const provideFunctionTests = async () => {
-  if (!isFunctionQuestion.value || !hasSubmittedQuestion.value) return
+  if (!isFunctionQuestion.value || !userStore.isAdmin || !hasSubmittedQuestion.value || providingTests.value) return
   const customCases = debugTestCases.value.filter((testCase) => !testCase.isSample && !testCase.provided)
   if (!customCases.length) {
     ElMessage.info('请先添加一个自定义测试用例')
@@ -1385,9 +1377,11 @@ const handleWindowResize = () => {
   })
 }
 
+watch(() => userStore.userDto?.userId, setupJudgeSubscriptions)
+
 onMounted(async () => {
-  await loadQuestion()
   setupJudgeSubscriptions()
+  await loadQuestion()
   nextTick(() => { calculateWidths(); initEditor() })
   window.addEventListener('resize', handleWindowResize, { passive: true })
 })

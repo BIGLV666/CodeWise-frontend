@@ -1,10 +1,10 @@
-import request from "./request";
+import request, { type ApiResult } from "./request";
 export interface JudgeRequest {
   code: string
   language: string
   questionTitle:string
   questionId: number
-  submitScene?: 'REVIEW' | string
+  submitScene: 'NORMAL' | 'REVIEW' | 'PLAN'
 }
 // types/debug.ts
 export interface DebugTestCase {
@@ -68,7 +68,23 @@ export interface LeetCodeArtifactTask {
   finishTime?: string
 }
 
+export interface InsertQuestionPayload {
+  title: string
+  description: string
+  inputDesc: string
+  outputDesc: string
+  sampleInput: string
+  sampleOutput: string
+  hint: string
+  tags: string
+  timeLimit: number
+  memoryLimit: number
+}
+
 const questionApi={
+    addQuestion(data: InsertQuestionPayload) {
+      return request.post('/question/addquestion', data)
+    },
     cursorquestions(params:any){
         return request.get('/question/cursorquestions', { params })
     },
@@ -79,7 +95,7 @@ const questionApi={
         return request.get('/question/getquestionbyid',{params:{questionId}})
     },
     submitCode(data: JudgeRequest) {
-        return request.post<number>('/question/judge', data)
+        return request.post<number, ApiResult<number>>('/question/judge', data)
       },
        getSubmitRecord(questionId:number){
       return request.get('/question/getsubmitrecordsbyquestionid',{params:{questionId}})
@@ -88,7 +104,7 @@ const questionApi={
       return request.get('/question/getsubmitrecordsbyuserid', { params })
     },
     debug(data: { userId: string; code: string; language: string; questionId: number; tests: DebugTestCase[] }) {
-      return request.post('/question/debug', data)
+      return request.post<string, ApiResult<string>>('/question/debug', data)
     },
     addFunctionTestCases(questionId: number, testCases: FunctionTestCasePayload[]) {
       return request.post('/question/function/test-cases/batch', testCases, {

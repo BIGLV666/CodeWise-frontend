@@ -15,6 +15,7 @@ export interface JudgeResultDTO {
   memoryUsed?: number
   error?: string
   log?: string
+  actual?: string
   userOutput?: string
 }
 

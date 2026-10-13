@@ -75,7 +75,7 @@
               />
             </div>
             <div class="header-right">
-              <el-button size="small" :icon="Download" class="import-button" @click="goLeetCodeImport">
+              <el-button v-if="userStore.isAdmin" size="small" :icon="Download" class="import-button" @click="goLeetCodeImport">
                 导入力扣
               </el-button>
               <el-select
@@ -674,7 +674,7 @@ const openFavorites = (favoriteId?: string) => {
 }
 
 const goReview = () => navigateTopLevel(router, '/review')
-const goLeetCodeImport = () => router.push('/questions/import/leetcode')
+const goLeetCodeImport = () => router.push('/admin/questions/import/leetcode')
 
 onMounted(async () => {
   await Promise.all([loadQuestionTotal(), loadQuestions(true), loadHomeFavorites(), loadUserProfile(), loadSubmitStats()])

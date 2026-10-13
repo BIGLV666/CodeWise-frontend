@@ -23,7 +23,7 @@
         v-else-if="!loading && !authorized"
         icon="warning"
         title="无操作权限"
-        sub-title="只有题目创建者或管理员可以生成随机测试用例"
+        sub-title="只有管理员可以生成随机测试用例"
       >
         <template #extra><el-button @click="goBack">返回题目</el-button></template>
       </el-result>
@@ -35,7 +35,7 @@
             <h1>随机测试生成</h1>
             <p>{{ questionData.questionId }}. {{ questionData.title }}</p>
           </div>
-          <el-tag type="warning" effect="plain">仅创建者和管理员</el-tag>
+          <el-tag type="warning" effect="plain">仅管理员</el-tag>
         </section>
 
         <div class="generator-layout">
@@ -142,7 +142,6 @@ import { ElMessage } from 'element-plus'
 import { Back, CircleCheck, MagicStick, Warning } from '@element-plus/icons-vue'
 import questionApi from '@/api/questionApi'
 import type { FunctionTestCaseGenerationTask } from '@/api/questionApi'
-import userApi from '@/api/userApi'
 import { useUserStore } from '@/stores/User'
 
 const route = useRoute()
@@ -152,7 +151,6 @@ const userStore = useUserStore()
 const loading = ref(true)
 const loadError = ref('')
 const questionData = ref<any>(null)
-const currentRoleId = ref<number | null>(null)
 const standardAnswer = ref('')
 const caseCount = ref(20)
 const seed = ref('')
@@ -165,11 +163,7 @@ const questionId = computed(() => {
   return Number(value)
 })
 
-const currentUserId = computed(() => String(userStore.userDto?.userId || localStorage.getItem('userId') || ''))
-const authorized = computed(() => {
-  const creatorId = questionData.value?.createUserId
-  return String(creatorId ?? '') === currentUserId.value || currentRoleId.value === 2
-})
+const authorized = computed(() => userStore.isAdmin)
 
 const functionParameters = computed<Array<{ type: string; name: string }>>(() => {
   try {
@@ -241,15 +235,12 @@ const loadPage = async () => {
   loading.value = true
   loadError.value = ''
   try {
-    if (!Number.isFinite(questionId.value)) throw new Error('缺少有效的题目 ID')
-    const userId = currentUserId.value
-    const [questionResponse, userResponse]: any[] = await Promise.all([
+    if (!Number.isSafeInteger(questionId.value) || questionId.value <= 0) throw new Error('缺少有效的题目 ID')
+    const [questionResponse]: any[] = await Promise.all([
       questionApi.getQuestionById(questionId.value),
-      userId ? userApi.getUserById(userId) : Promise.resolve(null),
+      userStore.ensureRoleId(),
     ])
     questionData.value = questionResponse?.data ?? questionResponse
-    const user = userResponse?.data ?? userResponse
-    currentRoleId.value = user?.roleId === undefined ? null : Number(user.roleId)
     if (questionData.value?.questionType !== 'FUNCTION') throw new Error('仅核心函数题支持随机测试生成')
     if (authorized.value && !standardAnswer.value) standardAnswer.value = getStarterCode()
   } catch (error: any) {

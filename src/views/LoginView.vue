@@ -70,6 +70,7 @@
             <el-form-item label="用户名或邮箱" prop="username">
               <el-input
                 v-model.trim="loginForm.username"
+                maxlength="254"
                 :prefix-icon="User"
                 autocomplete="username"
                 placeholder="请输入用户名或邮箱"
@@ -116,6 +117,7 @@
             <el-form-item label="邮箱" prop="email">
               <el-input
                 v-model.trim="codeForm.email"
+                maxlength="254"
                 :prefix-icon="Message"
                 autocomplete="email"
                 placeholder="请输入已注册的邮箱"
@@ -188,6 +190,7 @@ const rules: FormRules = {
   username: [
     { required: true, message: '请输入用户名或邮箱', trigger: 'blur' },
     { min: 3, message: '账号至少需要 3 个字符', trigger: 'blur' },
+    { max: 254, message: '账号最多 254 个字符', trigger: 'blur' },
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -199,6 +202,7 @@ const codeRules: FormRules = {
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
     { type: 'email', message: '邮箱格式不正确', trigger: 'blur' },
+    { max: 254, message: '邮箱最多 254 个字符', trigger: 'blur' },
   ],
   code: [
     { required: true, message: '请输入验证码', trigger: 'blur' },

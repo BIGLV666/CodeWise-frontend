@@ -8,7 +8,7 @@ export interface TestCaseItem {
   expectedOutput: string
   /** 1-样例用例 0-隐藏用例 */
   isSample?: number
-  /** 1-对用户可见 0-隐藏 */
+  /** 1-隐藏 0-对用户可见 */
   isHidden?: number
   sortOrder?: number
   scoreWeight?: number

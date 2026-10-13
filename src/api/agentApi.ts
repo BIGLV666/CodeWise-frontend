@@ -132,6 +132,7 @@ const agentApi = {
   async stream(
     payload: AgentCallPayload,
     handlers: AgentStreamHandlers,
+    signal?: AbortSignal,
   ): Promise<AgentStreamResult> {
     const token = localStorage.getItem('token')
     const response = await fetch(`${agentBaseUrl}/api/agent/stream`, {
@@ -142,6 +143,7 @@ const agentApi = {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(payload),
+      signal,
     })
 
     if (!response.ok || !response.body) {
@@ -149,9 +151,11 @@ const agentApi = {
       try {
         const error = await response.json()
         message = error.detail || message
-      } catch {
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error
         // Keep the status-based message when the response is not JSON.
       }
+      signal?.throwIfAborted()
       throw new Error(message)
     }
 
@@ -205,32 +209,52 @@ const agentApi = {
     let buffer = ''
     let eventName = 'message'
     let dataLines: string[] = []
+    let receivedDone = false
 
     const dispatch = () => {
-      if (!dataLines.length) return
+      if (!dataLines.length) {
+        eventName = 'message'
+        return
+      }
       const raw = dataLines.join('\n')
       dataLines = []
       const data = JSON.parse(raw)
       if (eventName === 'session.event') handleSessionEvent(data.event)
-      else if (eventName === 'done') final = { content: data.content || '', finishReason: data.finish_reason ?? null }
-      else if (eventName === 'error') throw new Error(data.message || 'Agent 调用失败')
+      else if (eventName === 'done') {
+        final = { content: data.content || '', finishReason: data.finish_reason ?? null }
+        receivedDone = true
+      } else if (eventName === 'error') throw new Error(data.message || 'Agent 调用失败')
       eventName = 'message'
+    }
+
+    const handleLine = (line: string) => {
+      if (!line) dispatch()
+      else if (line.startsWith('event:')) eventName = line.slice(6).trim()
+      else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
     }
 
     try {
       while (true) {
+        signal?.throwIfAborted()
         const { done, value } = await reader.read()
+        signal?.throwIfAborted()
         buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
         const lines = buffer.split(/\r?\n/)
         buffer = lines.pop() || ''
-        for (const line of lines) {
-          if (!line) dispatch()
-          else if (line.startsWith('event:')) eventName = line.slice(6).trim()
-          else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
-        }
+        for (const line of lines) handleLine(line)
         if (done) break
       }
+      if (buffer) handleLine(buffer)
       dispatch()
+      signal?.throwIfAborted()
+      if (!receivedDone) throw new Error('Agent 响应中断，请重试')
+    } catch (error) {
+      try {
+        await reader.cancel()
+      } catch {
+        // Cancellation must not replace the original stream error (including AbortError).
+      }
+      throw error
     } finally {
       reader.releaseLock()
     }

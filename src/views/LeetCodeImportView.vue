@@ -295,9 +295,9 @@ function validateParameters() {
 }
 
 async function saveQuestion() {
-  if (!draft.value || !formRef.value) return
+  if (saving.value || !draft.value || !formRef.value) return
   const valid = await formRef.value.validate().catch(() => false)
-  if (!valid || !validateParameters()) return
+  if (!valid || saving.value || !validateParameters()) return
   saving.value = true
   try {
     const payload: FunctionQuestionDraft = {
@@ -315,8 +315,8 @@ async function saveQuestion() {
     localStorage.setItem('homeQuestionType', 'FUNCTION')
     ElMessage.success('核心函数题目已添加')
     await router.replace({
-      path: '/questiondetailview',
-      query: { questionId: response.data, from: '/home' },
+      path: '/admin/testcases',
+      query: { questionId: response.data },
     })
   } catch (error) {
     console.error('保存核心函数题目失败:', error)

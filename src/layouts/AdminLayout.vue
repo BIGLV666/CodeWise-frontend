@@ -71,6 +71,8 @@ const navItems = [
   { path: '/admin/moderation', label: '内容审核', icon: DocumentChecked },
   { path: '/admin/appeals', label: '申诉管理', icon: ChatLineSquare },
   { path: '/admin/users', label: '用户治理', icon: User },
+  { path: '/admin/questions/create', label: '普通题目', icon: DocumentChecked },
+  { path: '/admin/questions/import/leetcode', label: '力扣导入', icon: Files },
   { path: '/admin/testcases', label: '测试点', icon: Files },
   { path: '/admin/artifact-generator', label: 'AI 出题', icon: MagicStick },
 ]

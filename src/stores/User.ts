@@ -2,8 +2,13 @@
 import { defineStore } from 'pinia'
 import type userDto  from '@/types/UserDto'
 
-/** 管理员角色 ID，后端约定 2 为管理员。 */
+/** 管理员角色：0 为 root，2 为管理员。仅用于前端访问引导。 */
 export const ADMIN_ROLE_ID = 2
+export function isAdminRole(roleId: unknown): boolean {
+  if (typeof roleId !== 'number' && typeof roleId !== 'string') return false
+  if (typeof roleId === 'string' && !roleId.trim()) return false
+  return Number(roleId) === 0 || Number(roleId) === ADMIN_ROLE_ID
+}
 
 function readStoredRoleId(): number | undefined {
   const raw = localStorage.getItem('roleId')
@@ -33,7 +38,7 @@ export const useUserStore = defineStore('user', {
      * 是否管理员。仅用于界面展示，真正的权限校验在后端 @RequireAdmin。
      * roleId 尚未加载时返回 false。
      */
-    isAdmin: (state) => Number(state.userDto?.roleId) === ADMIN_ROLE_ID,
+    isAdmin: (state) => isAdminRole(state.userDto?.roleId),
   },
   
   actions: {

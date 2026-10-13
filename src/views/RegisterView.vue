@@ -29,7 +29,7 @@
 
 				<!-- 邮箱 -->
 				<el-form-item label="邮箱" prop="email">
-					<el-input v-model="registerForm.email" placeholder="请输入邮箱地址" prefix-icon="Message" clearable />
+					<el-input v-model="registerForm.email" maxlength="254" placeholder="请输入邮箱地址" prefix-icon="Message" clearable />
 				</el-form-item>
 
 				<!-- 密码 -->
@@ -96,7 +96,7 @@
 		<el-dialog v-model="resetDialogVisible" title="找回密码" width="460px" :before-close="handleResetDialogClose">
 			<el-form ref="resetFormRef" :model="resetForm" :rules="resetRules" label-width="80px" size="large">
 				<el-form-item label="邮箱" prop="email">
-					<el-input v-model="resetForm.email" placeholder="请输入注册时使用的邮箱" prefix-icon="Message" clearable />
+					<el-input v-model="resetForm.email" maxlength="254" placeholder="请输入注册时使用的邮箱" prefix-icon="Message" clearable />
 				</el-form-item>
 				<el-form-item label="验证码" prop="captcha">
 					<div class="captcha-wrapper">
@@ -198,7 +198,8 @@ const registerRules: FormRules = {
 	],
 	email: [
 		{ required: true, message: '请输入邮箱地址', trigger: 'blur' },
-		{ type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+		{ type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
+		{ max: 254, message: '邮箱最多 254 个字符', trigger: 'blur' }
 	],
 	password: [
 		{ required: true, message: '请输入密码', trigger: 'blur' },
@@ -222,6 +223,8 @@ const countdownSeconds = ref(60)
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 /// ====== 发送验证码 ======
 const sendCaptcha = async () => {
+	const valid = await registerFormRef.value?.validateField('email').then(() => true).catch(() => false)
+	if (!valid) return
 	if (!registerForm.email) {
 		ElMessage.warning('请先输入邮箱地址')
 		return
@@ -301,7 +304,8 @@ const validateResetConfirmPassword = (rule: any, value: string, callback: any) =
 const resetRules: FormRules = {
 	email: [
 		{ required: true, message: '请输入邮箱地址', trigger: 'blur' },
-		{ type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+		{ type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
+		{ max: 254, message: '邮箱最多 254 个字符', trigger: 'blur' }
 	],
 	captcha: [
 		{ required: true, message: '请输入验证码', trigger: 'blur' },
@@ -399,6 +403,8 @@ onBeforeUnmount(() => {
 
 
 const sendResetCaptcha = async () => {
+	const valid = await resetFormRef.value?.validateField('email').then(() => true).catch(() => false)
+	if (!valid) return
 	if (!resetForm.email) {
 		ElMessage.warning('请先输入邮箱地址')
 		return

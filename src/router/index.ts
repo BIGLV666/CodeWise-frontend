@@ -19,8 +19,8 @@ const router = createRouter({
     { path: '/profile', name: 'profile', component: () => import('@/views/ProfileView.vue'), meta: { stack: 'root' } },
     { path: '/agent', name: 'agent', component: () => import('@/views/AgentView.vue'), meta: { stack: 'root' } },
 
-    { path: '/questions/import/leetcode', name: 'leetcode-import', component: () => import('@/views/LeetCodeImportView.vue'), meta: { stack: 'detail' } },
-    { path: '/questions/function-test-generator', name: 'function-test-generator', component: () => import('@/views/FunctionTestGeneratorView.vue'), meta: { stack: 'detail', remountOnQuery: true } },
+    { path: '/questions/import/leetcode', redirect: (to) => ({ path: '/admin/questions/import/leetcode', query: to.query }), meta: { requiresAdmin: true } },
+    { path: '/questions/function-test-generator', name: 'function-test-generator', component: () => import('@/views/FunctionTestGeneratorView.vue'), meta: { requiresAdmin: true, stack: 'detail', remountOnQuery: true } },
     { path: '/questiondetailview', name: 'questiondetailview', component: () => import('@/views/QuestionDetailView.vue'), meta: { stack: 'detail', remountOnQuery: true } },
     { path: '/discuss/create', name: 'discussion-create', component: () => import('@/views/DiscussionComposeView.vue'), meta: { stack: 'detail' } },
     { path: '/discuss/:postId', name: 'discussion-detail', component: () => import('@/views/DiscussionDetailView.vue'), meta: { stack: 'detail', remountOnQuery: true } },
@@ -36,6 +36,8 @@ const router = createRouter({
         { path: 'moderation', name: 'admin-moderation', component: () => import('@/views/AdminModerationView.vue') },
         { path: 'appeals', name: 'admin-appeals', component: () => import('@/views/AdminAppealsView.vue') },
         { path: 'users', name: 'admin-users', component: () => import('@/views/AdminUsersView.vue') },
+        { path: 'questions/create', name: 'admin-question-create', component: () => import('@/views/AdminQuestionCreateView.vue') },
+        { path: 'questions/import/leetcode', name: 'leetcode-import', component: () => import('@/views/LeetCodeImportView.vue') },
         { path: 'testcases', name: 'admin-testcases', component: () => import('@/views/AdminTestCasesView.vue') },
         { path: 'artifact-generator', name: 'admin-artifact-generator', component: () => import('@/views/AdminFunctionArtifactView.vue') },
       ],
@@ -79,10 +81,10 @@ router.beforeEach(async (to) => {
   // 管理员路由做一次前置拦截，避免非管理员进入后被逐个接口 403。
   // 这只是界面层面的引导，真正的鉴权仍由后端 @RequireAdmin 负责。
   if (to.meta?.requiresAdmin) {
-    const { useUserStore, ADMIN_ROLE_ID } = await import('@/stores/User')
+    const { useUserStore, isAdminRole } = await import('@/stores/User')
     const userStore = useUserStore()
     const roleId = await userStore.ensureRoleId()
-    if (Number(roleId) !== ADMIN_ROLE_ID) {
+    if (!isAdminRole(roleId)) {
       ElMessage.error('该页面仅管理员可访问')
       return '/home'
     }

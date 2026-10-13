@@ -93,7 +93,7 @@
       <section class="chat-surface">
         <header class="chat-header">
           <strong>{{ activeConversation?.agent_conversation_name || '选择或新建一个会话' }}</strong>
-          <el-button :icon="Delete" text :disabled="messages.length === 0 || sending" @click="clearMessages">清空页面</el-button>
+          <el-button :icon="Delete" text :disabled="messages.length === 0 && !sending && !messagesLoading" @click="clearMessages">清空页面</el-button>
         </header>
 
         <div ref="scrollRef" class="transcript">
@@ -222,7 +222,7 @@
               :autosize="{ minRows: 1, maxRows: 8 }"
               resize="none"
               maxlength="2000"
-              :disabled="!activeConversationId || sending"
+              :disabled="!activeConversationId || sending || messagesLoading"
               :placeholder="activeConversationId ? '询问提交记录、学习情况或编程问题' : '请先选择或新建会话'"
               @keydown.enter.exact.prevent="sendMessage"
             />
@@ -231,7 +231,7 @@
               <button
                 class="send-btn"
                 type="button"
-                :disabled="!question.trim() || !activeConversationId || sending"
+                :disabled="!question.trim() || !activeConversationId || sending || messagesLoading"
                 aria-label="发送"
                 @click="sendMessage"
               >
@@ -249,7 +249,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowRight,
@@ -351,6 +351,10 @@ const messages = ref<ChatMessage[]>([])
 const liveStatus = ref('')
 const liveBlocks = ref<LiveBlock[]>([])
 const scrollRef = ref<HTMLElement>()
+const activeTurn = ref<{ id: number; conversationId: number; controller: AbortController; userMessageId: string }>()
+let turnSequence = 0
+let conversationLoadSequence = 0
+let unmounted = false
 const suggestions = ['分析我最近的提交情况', '我最近有哪些没有通过的题目？', '现在几点？']
 
 const selectedConfig = computed(() => configs.value.find((config) => config.userConfigId === selectedConfigId.value))
@@ -507,7 +511,7 @@ async function loadConversations() {
     const initialId = conversations.value.some((item) => item.agent_conversation_id === storedId)
       ? storedId
       : conversations.value[0]?.agent_conversation_id
-    if (initialId) await selectConversation(initialId)
+    if (initialId && !unmounted) await selectConversation(initialId)
   } catch (error) {
     ElMessage.error(errorText(error, '会话加载失败'))
   } finally {
@@ -529,8 +533,32 @@ async function createConversation() {
   }
 }
 
+function abortActiveTurn() {
+  const turn = activeTurn.value
+  if (!turn) return
+  turn.controller.abort()
+  if (activeConversationId.value === turn.conversationId) {
+    messages.value = messages.value.filter((message) => message.id !== turn.userMessageId)
+  }
+  activeTurn.value = undefined
+  sending.value = false
+  liveBlocks.value = []
+  liveStatus.value = ''
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+function isCurrentTurn(turn: { id: number; conversationId: number }): boolean {
+  return activeTurn.value?.id === turn.id && activeConversationId.value === turn.conversationId
+}
+
 async function selectConversation(conversationId: number) {
-  if (sending.value || (activeConversationId.value === conversationId && messages.value.length)) return
+  if (unmounted) return
+  if (activeConversationId.value === conversationId && messages.value.length && !sending.value) return
+  abortActiveTurn()
+  const loadSequence = ++conversationLoadSequence
   activeConversationId.value = conversationId
   localStorage.setItem('agentConversationId', String(conversationId))
   messagesLoading.value = true
@@ -539,16 +567,21 @@ async function selectConversation(conversationId: number) {
   liveStatus.value = ''
   try {
     const records = await agentApi.getMessages(conversationId)
+    if (loadSequence !== conversationLoadSequence || activeConversationId.value !== conversationId) return
     messages.value = (Array.isArray(records) ? records : [])
       .slice()
       .reverse()
       .filter((message) => message.role !== 'SYSTEM')
       .map(mapMessage)
-    await scrollToBottom()
+    await scrollToBottom(() => loadSequence === conversationLoadSequence && activeConversationId.value === conversationId)
   } catch (error) {
-    ElMessage.error(errorText(error, '消息加载失败'))
+    if (loadSequence === conversationLoadSequence && activeConversationId.value === conversationId) {
+      ElMessage.error(errorText(error, '消息加载失败'))
+    }
   } finally {
-    messagesLoading.value = false
+    if (loadSequence === conversationLoadSequence && activeConversationId.value === conversationId) {
+      messagesLoading.value = false
+    }
   }
 }
 
@@ -576,13 +609,19 @@ async function removeConversation(conversation: AgentConversation) {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
     })
+    if (activeConversationId.value === conversation.agent_conversation_id) abortActiveTurn()
     await agentApi.deleteConversation(conversation.agent_conversation_id)
     conversations.value = conversations.value.filter(
       (item) => item.agent_conversation_id !== conversation.agent_conversation_id,
     )
     if (activeConversationId.value === conversation.agent_conversation_id) {
+      abortActiveTurn()
+      ++conversationLoadSequence
       activeConversationId.value = undefined
       messages.value = []
+      messagesLoading.value = false
+      liveBlocks.value = []
+      liveStatus.value = ''
       localStorage.removeItem('agentConversationId')
       const nextConversation = conversations.value[0]
       if (nextConversation) await selectConversation(nextConversation.agent_conversation_id)
@@ -592,9 +631,9 @@ async function removeConversation(conversation: AgentConversation) {
   }
 }
 
-async function scrollToBottom() {
+async function scrollToBottom(isCurrent: () => boolean = () => true) {
   await nextTick()
-  if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight
+  if (isCurrent() && scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight
 }
 
 function useSuggestion(value: string) {
@@ -630,54 +669,71 @@ function finishToolCall(callId: string, isError: boolean, preview: string) {
 
 async function sendMessage() {
   const content = question.value.trim()
-  if (!content || sending.value) return
+  if (!content || sending.value || messagesLoading.value || unmounted) return
   if (!selectedConfigId.value || !selectedModel.value) {
     ElMessage.warning('请先选择模型配置')
     return
   }
-  if (!activeConversationId.value) {
+  const conversationId = activeConversationId.value
+  if (!conversationId) {
     ElMessage.warning('请先选择或新建会话')
     return
   }
 
-  messages.value.push({ id: `user-${Date.now()}`, role: 'USER', content })
+  const userConfigId = selectedConfigId.value
+  const modelName = selectedModel.value
+  const turn = {
+    id: ++turnSequence,
+    conversationId,
+    controller: new AbortController(),
+    userMessageId: `user-${turnSequence}-${Date.now()}`,
+  }
+  activeTurn.value = turn
+  messages.value.push({ id: turn.userMessageId, role: 'USER', content })
   question.value = ''
   sending.value = true
   liveBlocks.value = []
   liveStatus.value = '正在连接 Agent'
-  localStorage.setItem(`agentModel:${selectedConfigId.value}`, selectedModel.value)
-  await scrollToBottom()
+  localStorage.setItem(`agentModel:${userConfigId}`, modelName)
 
   try {
+    await scrollToBottom(() => isCurrentTurn(turn))
+    if (!isCurrentTurn(turn)) return
     const result = await agentApi.stream(
       {
-        user_config_id: selectedConfigId.value,
-        conversation_id: activeConversationId.value,
-        model_name: selectedModel.value,
+        user_config_id: userConfigId,
+        conversation_id: conversationId,
+        model_name: modelName,
         question: content,
       },
       {
         onTextDelta(text) {
+          if (!isCurrentTurn(turn)) return
           liveStatus.value = ''
           appendTextDelta(text)
-          scrollToBottom()
+          scrollToBottom(() => isCurrentTurn(turn))
         },
         onStatus(message) {
+          if (!isCurrentTurn(turn)) return
           if (!hasLiveText.value) liveStatus.value = message
-          scrollToBottom()
+          scrollToBottom(() => isCurrentTurn(turn))
         },
         onToolCall(event) {
+          if (!isCurrentTurn(turn)) return
           liveStatus.value = ''
           upsertToolCall(event.callId, event.name, event.argsText)
-          scrollToBottom()
+          scrollToBottom(() => isCurrentTurn(turn))
         },
         onToolResult(event) {
+          if (!isCurrentTurn(turn)) return
           finishToolCall(event.callId, event.isError, event.preview)
-          scrollToBottom()
+          scrollToBottom(() => isCurrentTurn(turn))
         },
       },
+      turn.controller.signal,
     )
 
+    if (!isCurrentTurn(turn)) return
     const finalContent = result.content || collectText()
     if (!finalContent) throw new Error('Agent 未返回内容')
     // 工具轨迹冻结进消息（dsh 行为：turn 结束后工具行仍可展开查看）；
@@ -685,16 +741,21 @@ async function sendMessage() {
     const trace = liveBlocks.value
       .filter((block): block is ToolBlock => block.kind === 'tool')
       .map((block) => ({ ...block }))
-    messages.value.push({ id: `assistant-${Date.now()}`, role: 'ASSISTANT', content: finalContent, trace })
+    messages.value.push({ id: `assistant-${turn.id}-${Date.now()}`, role: 'ASSISTANT', content: finalContent, trace })
   } catch (error) {
-    const message = errorText(error, 'Agent 调用失败')
-    ElMessage.error(message)
+    if (!isCurrentTurn(turn)) return
+    messages.value = messages.value.filter((message) => message.id !== turn.userMessageId)
+    if (isAbortError(error)) return
+    ElMessage.error(errorText(error, 'Agent 调用失败'))
     question.value = content
   } finally {
-    liveBlocks.value = []
-    liveStatus.value = ''
-    sending.value = false
-    await scrollToBottom()
+    if (isCurrentTurn(turn)) {
+      activeTurn.value = undefined
+      liveBlocks.value = []
+      liveStatus.value = ''
+      sending.value = false
+      await scrollToBottom(() => turnSequence === turn.id && activeConversationId.value === conversationId && !unmounted)
+    }
   }
 }
 
@@ -706,7 +767,10 @@ function collectText(): string {
 }
 
 function clearMessages() {
+  abortActiveTurn()
+  ++conversationLoadSequence
   messages.value = []
+  messagesLoading.value = false
 }
 
 const goHome = () => navigateTopLevel(router, '/home')
@@ -714,6 +778,12 @@ const manageModels = () => router.push({ path: '/profile', query: { section: 'ai
 
 onMounted(async () => {
   await Promise.all([loadConfigs(), loadConversations()])
+})
+
+onBeforeUnmount(() => {
+  unmounted = true
+  abortActiveTurn()
+  ++conversationLoadSequence
 })
 </script>
 

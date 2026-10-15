@@ -576,6 +576,11 @@ async function sendQuestion() {
     messages.value = messages.value.filter((message) => String(message.messageId) !== streamingId)
     question.value = content
     console.error('AI 追问失败:', error)
+    // 必须报给用户：原来这里只写控制台，用户侧表现是"点了发送什么都没发生"
+    // （后端其实已经把 ASSISTANT 行置为 FAILED，并回了一个带原因的 error 事件）。
+    // 消息文本取服务端下发的枚举文案，例如「该模型暂时无法响应，请更换模型或稍后重试」。
+    const text = error instanceof Error ? error.message?.trim() : ''
+    ElMessage.error(text || 'AI 生成失败，请稍后重试')
   } finally {
     if (streamingMessageId.value === streamingId) streamingMessageId.value = ''
     sending.value = false

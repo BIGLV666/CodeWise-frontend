@@ -195,6 +195,16 @@ const aiApi = {
   fetchModels(payload: { baseUrl: string; apiKey: string }) {
     return request.post<string[]>('/ai/configs/models', payload, { timeout: 25_000 })
   },
+
+  /**
+   * 平台当前可选的模型名（去重、已排序），用于模型选择器里的「平台模型」一节。
+   *
+   * 与 {@link fetchModels} 不是一回事：那个是拿用户填的地址去探它有哪些模型，
+   * 这个是平台自己能提供什么。服务商信息不下发——用户看到的是"用哪个模型"。
+   */
+  listPlatformModels() {
+    return request.get<string[]>('/ai/models')
+  },
 }
 
 function parseSseString(value: string) {

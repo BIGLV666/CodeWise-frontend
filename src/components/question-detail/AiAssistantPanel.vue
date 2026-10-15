@@ -105,14 +105,27 @@
                   <span>Auto</span>
                 </button>
                 <button
+                  v-if="platformModels.length"
+                  class="model-group-item"
+                  :class="{ active: bindingPlatform }"
+                  type="button"
+                  @mouseenter="bindingPlatform = true"
+                  @focus="bindingPlatform = true"
+                  @click="bindingPlatform = true"
+                >
+                  <span class="group-mark platform"><el-icon><Platform /></el-icon></span>
+                  <span class="group-name">平台模型</span>
+                  <el-icon class="group-arrow"><ArrowRight /></el-icon>
+                </button>
+                <button
                   v-for="config in modelConfigs"
                   :key="config.userConfigId"
                   class="model-group-item"
-                  :class="{ active: activeConfigId === config.userConfigId }"
+                  :class="{ active: !bindingPlatform && activeConfigId === config.userConfigId }"
                   type="button"
-                  @mouseenter="activeConfigId = config.userConfigId"
-                  @focus="activeConfigId = config.userConfigId"
-                  @click="activeConfigId = config.userConfigId"
+                  @mouseenter="showGroupModels(config.userConfigId)"
+                  @focus="showGroupModels(config.userConfigId)"
+                  @click="showGroupModels(config.userConfigId)"
                 >
                   <span class="group-mark"><el-icon><Cpu /></el-icon></span>
                   <span class="group-name">{{ config.groupName }}</span>
@@ -131,7 +144,26 @@
             </div>
 
             <div class="model-list-panel">
-              <template v-if="activeModelConfig">
+              <template v-if="bindingPlatform">
+                <div class="model-list-heading">
+                  <strong>平台模型</strong>
+                  <span>{{ platformModels.length }} 个模型</span>
+                </div>
+                <div class="model-list">
+                  <button
+                    v-for="modelName in platformModels"
+                    :key="modelName"
+                    class="model-list-item"
+                    :class="{ selected: isPlatformModelSelected(modelName) }"
+                    type="button"
+                    @click="selectPlatformModel(modelName)"
+                  >
+                    <span>{{ modelName }}</span>
+                    <el-icon v-if="isPlatformModelSelected(modelName)"><Check /></el-icon>
+                  </button>
+                </div>
+              </template>
+              <template v-else-if="activeModelConfig">
                 <div class="model-list-heading">
                   <strong>{{ activeModelConfig.groupName }}</strong>
                   <span>{{ activeModelConfig.modelNames.length }} 个模型</span>
@@ -193,6 +225,7 @@ import {
   Cpu,
   Loading,
   MagicStick,
+  Platform,
   Plus,
   Setting,
   Top,
@@ -206,6 +239,7 @@ import aiApi, {
 } from '@/api/aiApi'
 import websocketService from '@/utils/WebSocket'
 import { renderMarkdown } from '@/utils/markdown'
+import { buildAiModelParams } from '@/utils/aiModelSelection'
 import AiModelConfigDialog from '@/components/ai/AiModelConfigDialog.vue'
 
 const props = defineProps<{
@@ -234,6 +268,9 @@ const question = ref('')
 const messageAreaRef = ref<HTMLElement>()
 const currentModel = ref('auto')
 const modelConfigs = ref<UserAiConfigSummary[]>([])
+const platformModels = ref<string[]>([])
+// 右侧面板当前展示的是「平台模型」还是某个用户分组；两个来源互斥
+const bindingPlatform = ref(false)
 const configDialogVisible = ref(false)
 const modelPickerVisible = ref(false)
 const activeConfigId = ref<number | undefined>()
@@ -251,6 +288,12 @@ const visibleMessages = computed(() =>
 )
 const modelOptions = computed(() => [
   { label: 'Auto', value: 'auto', configId: undefined, modelName: '' },
+  ...platformModels.value.map((modelName) => ({
+    label: `平台 · ${modelName}`,
+    value: `platform:${modelName}`,
+    configId: undefined,
+    modelName,
+  })),
   ...modelConfigs.value.flatMap((config) =>
     (config.modelNames || []).map((modelName) => ({
       label: `${config.groupName} · ${modelName}`,
@@ -317,14 +360,33 @@ async function loadModelConfigs() {
     if (!activeConfigId.value || !modelConfigs.value.some((config) => config.userConfigId === activeConfigId.value)) {
       activeConfigId.value = selectedConfigId.value || modelConfigs.value[0]?.userConfigId
     }
-    if (!modelOptions.value.some((option) => option.value === currentModel.value)) {
-      currentModel.value = 'auto'
-      selectedConfigId.value = undefined
-      selectedModelName.value = ''
-    }
+    resetSelectionIfMissing()
   } catch (error) {
     console.error('AI 模型配置加载失败:', error)
   }
+}
+
+/** 当前选择已不存在（比如平台模型目录变了）时回落到 AUTO，避免标签显示与实际发送的参数不一致。 */
+function resetSelectionIfMissing() {
+  if (modelOptions.value.some((option) => option.value === currentModel.value)) return
+  currentModel.value = 'auto'
+  selectedConfigId.value = undefined
+  selectedModelName.value = ''
+  bindingPlatform.value = false
+}
+
+async function loadPlatformModels() {
+  try {
+    const data = unwrap<string[]>(await aiApi.listPlatformModels(), [])
+    platformModels.value = (data || [])
+      .filter((name) => typeof name === 'string' && name.trim())
+      .map((name) => name.trim())
+  } catch (error) {
+    // 目录拿不到就只是隐藏「平台模型」一节：用户自己的分组仍然可用，不该整块报错
+    console.error('平台模型目录加载失败:', error)
+    platformModels.value = []
+  }
+  resetSelectionIfMissing()
 }
 
 function compareMessages(left: AiMessage, right: AiMessage) {
@@ -490,9 +552,11 @@ async function sendQuestion() {
         conversationId: conversationId.value,
         question: content,
         code: props.getCurrentCode(),
-        ...(selectedConfigId.value && selectedModelName.value
-          ? { userAiConfigId: selectedConfigId.value, modelName: selectedModelName.value }
-          : {}),
+        // 三选一的线上契约见 buildAiModelParams（有单测钉住）
+        ...buildAiModelParams({
+          userConfigId: selectedConfigId.value,
+          modelName: selectedModelName.value,
+        }),
       },
       {
         onChunk: (chunk) => {
@@ -523,13 +587,34 @@ function selectAutoModel() {
   currentModel.value = 'auto'
   selectedConfigId.value = undefined
   selectedModelName.value = ''
+  bindingPlatform.value = false
   modelPickerVisible.value = false
+}
+
+function selectPlatformModel(modelName: string) {
+  currentModel.value = `platform:${modelName}`
+  // 关键：清掉 userAiConfigId，后端才会走「平台指定模型」而不是用户自带配置
+  selectedConfigId.value = undefined
+  selectedModelName.value = modelName
+  bindingPlatform.value = true
+  modelPickerVisible.value = false
+}
+
+function isPlatformModelSelected(modelName: string) {
+  return selectedConfigId.value === undefined && selectedModelName.value === modelName
+}
+
+/** 只切换右侧预览的分组，不改动已选模型——避免"只是看了一眼"就把选择改掉。 */
+function showGroupModels(configId: number) {
+  activeConfigId.value = configId
+  bindingPlatform.value = false
 }
 
 function selectCustomModel(config: UserAiConfigSummary, modelName: string) {
   currentModel.value = `${config.userConfigId}:${modelName}`
   selectedConfigId.value = config.userConfigId
   selectedModelName.value = modelName
+  bindingPlatform.value = false
   modelPickerVisible.value = false
 }
 
@@ -566,6 +651,7 @@ watch(
   (visible) => {
     if (visible) {
       loadModelConfigs()
+      loadPlatformModels()
       findConversation()
       scrollToBottom()
     }
@@ -574,6 +660,9 @@ watch(
 
 watch(modelPickerVisible, (visible) => {
   if (!visible) return
+  // 打开时预览"当前选中项"所在的那一栏：选了平台模型就亮平台栏，
+  // 选了分组就亮该分组，都没选（AUTO）保持上次浏览的分组
+  bindingPlatform.value = selectedConfigId.value === undefined && !!selectedModelName.value
   activeConfigId.value = selectedConfigId.value || activeConfigId.value || modelConfigs.value[0]?.userConfigId
 })
 
@@ -876,6 +965,10 @@ onBeforeUnmount(() => {
 .group-mark.auto {
   background: var(--cw-brand-soft);
   color: var(--cw-brand-dark);
+}
+.group-mark.platform {
+  background: var(--cw-bg-subtle);
+  color: var(--cw-info);
 }
 .group-name {
   overflow: hidden;

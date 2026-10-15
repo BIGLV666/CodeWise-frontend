@@ -201,9 +201,12 @@ const aiApi = {
    *
    * 与 {@link fetchModels} 不是一回事：那个是拿用户填的地址去探它有哪些模型，
    * 这个是平台自己能提供什么。服务商信息不下发——用户看到的是"用哪个模型"。
+   *
+   * silent：拿不到（未配置端点 → 后端没有该路由，或某次抖动）就整节隐藏，
+   * 不该因为一个可选的目录接口给用户弹错误提示。
    */
   listPlatformModels() {
-    return request.get<string[]>('/ai/models')
+    return request.get<string[]>('/ai/models', { silent: true })
   },
 }
 

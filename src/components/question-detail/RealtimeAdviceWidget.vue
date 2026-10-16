@@ -59,6 +59,8 @@ import { Close, Loading, MagicStick, RefreshRight } from '@element-plus/icons-vu
 import aiApi, { type RealtimeAnalysisPush } from '@/api/aiApi'
 import websocketService from '@/utils/WebSocket'
 import { renderMarkdown } from '@/utils/markdown'
+import { useViewportSize } from '@/composables/useViewportSize'
+import { logWarn } from '@/utils/logger'
 
 const props = defineProps<{
   questionId: string | number
@@ -76,9 +78,10 @@ const unread = ref(false)
 const flashing = ref(false)
 const dragging = ref(false)
 const advices = ref<string[]>([])
-const viewportWidth = ref(window.innerWidth)
-const viewportHeight = ref(window.innerHeight)
-const position = ref({ x: window.innerWidth - BALL_SIZE - 28, y: window.innerHeight - BALL_SIZE - 92 })
+// 悬浮球要按真实像素夹取边界，所以用精确尺寸而不是断点档位；
+// 监听由共享 composable 统一持有，组件不再自己 add/remove resize。
+const { width: viewportWidth, height: viewportHeight } = useViewportSize()
+const position = ref({ x: viewportWidth.value - BALL_SIZE - 28, y: viewportHeight.value - BALL_SIZE - 92 })
 let activePointerId: number | null = null
 let dragStart = { pointerX: 0, pointerY: 0, x: 0, y: 0 }
 let movedDuringDrag = false
@@ -133,11 +136,11 @@ function restorePosition() {
 }
 
 function handleResize() {
-  viewportWidth.value = window.innerWidth
-  viewportHeight.value = window.innerHeight
   clampPosition()
   savePosition()
 }
+
+watch([viewportWidth, viewportHeight], handleResize)
 
 function startDrag(event: PointerEvent) {
   if (event.button !== 0) return
@@ -187,7 +190,7 @@ async function loadAdvices() {
       : []
     unread.value = false
   } catch (error) {
-    console.error('加载实时分析建议失败:', error)
+    logWarn('加载实时分析建议失败:', error)
   } finally {
     loading.value = false
   }
@@ -234,12 +237,10 @@ watch(() => props.questionId, () => {
 
 onMounted(() => {
   restorePosition()
-  window.addEventListener('resize', handleResize)
 })
 
 onBeforeUnmount(() => {
   stopAdviceListener()
-  window.removeEventListener('resize', handleResize)
   if (flashTimer) window.clearTimeout(flashTimer)
 })
 </script>

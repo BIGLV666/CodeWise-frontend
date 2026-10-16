@@ -89,8 +89,15 @@ const aiApi = {
     return request.get<AiMessageCursorPage>(`/ai/advice/${conversationId}/messages`, { params })
   },
 
+  /**
+   * 实时分析的代码快照上报。
+   *
+   * silent：这是编辑过程中的**自动后台上报**（空闲 45s 触发），失败对用户没有可操作性，
+   * 弹全局提示只会变成打字时的噪音；失败由一个专门的降级策略处理
+   * （见 QuestionDetailView 的 flushRealtimeAnalysis：CODE_CHANGE_RANGE_INVALID 时重建快照）。
+   */
   reportRealtimeAnalysis(payload: RealtimeAnalysisTask) {
-    return request.post<string>('/ai/advice/task', payload)
+    return request.post<string>('/ai/advice/task', payload, { silent: true })
   },
 
   getRealtimeAdvices(questionId: string | number) {

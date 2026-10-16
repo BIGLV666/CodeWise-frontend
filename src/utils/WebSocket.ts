@@ -1,4 +1,5 @@
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs'
+import { logWarn, logDebug } from '@/utils/logger'
 
 type Listener = (data: any) => void
 
@@ -24,7 +25,8 @@ class WebSocketService {
       connectHeaders: {
         Authorization: `Bearer ${token}`,
       },
-      debug: import.meta.env.DEV ? (message) => console.debug('STOMP:', message) : () => undefined,
+      // logDebug 自身只在开发环境输出，不必再判一次 DEV
+      debug: (message) => logDebug('STOMP:', message),
       reconnectDelay: 3000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
@@ -39,11 +41,11 @@ class WebSocketService {
     }
 
     client.onStompError = (frame) => {
-      console.error('STOMP 连接错误:', frame.headers.message || frame.body)
+      logWarn('STOMP 连接错误:', frame.headers.message || frame.body)
     }
 
     client.onWebSocketError = (error) => {
-      console.error('WebSocket 连接错误:', error)
+      logWarn('WebSocket 连接错误:', error)
     }
 
     client.onWebSocketClose = () => {
@@ -126,7 +128,7 @@ class WebSocketService {
     try {
       this.emit(event, JSON.parse(message.body))
     } catch (error) {
-      console.error(`WebSocket 消息解析失败 (${event}):`, error)
+      logWarn(`WebSocket 消息解析失败 (${event}):`, error)
     }
   }
 

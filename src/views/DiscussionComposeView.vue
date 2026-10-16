@@ -2,10 +2,17 @@
   <div class="compose-page">
     <header class="navbar">
       <div class="nav-left">
+        <MobileNavToggle :open="nav.open.value" label="打开主导航" @toggle="nav.toggle" />
         <button class="logo" type="button" @click="navigateTopLevel(router, '/home')">
           <BrandLogo :size="28" />
         </button>
-        <nav>
+        <nav class="cw-offcanvas" :class="{ 'is-open': nav.open.value }" aria-label="主导航">
+          <div class="nav-drawer-head cw-only-phone">
+            <span>导航</span>
+            <button class="nav-drawer-close cw-tap" type="button" aria-label="收起导航" @click="nav.close">
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
           <button type="button" @click="navigateTopLevel(router, '/home')">题库</button>
           <button type="button">竞赛</button>
           <button class="active" type="button" @click="navigateTopLevel(router, '/discuss')">讨论</button>
@@ -87,6 +94,8 @@
         </div>
       </section>
     </main>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
@@ -94,12 +103,19 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Close } from '@element-plus/icons-vue'
 import communityApi from '@/api/communityApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import { renderMarkdown } from '@/utils/markdown'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
 import { navigateTopLevel } from '@/utils/navigation'
+import { logWarn } from '@/utils/logger'
 
 const router = useRouter()
+// 手机档主导航转成抽屉
+const nav = useMobileNav()
 const route = useRoute()
 const editorRef = ref<HTMLTextAreaElement>()
 const submitting = ref(false)
@@ -110,7 +126,7 @@ const toolbarActions = [
   { label: 'H1', snippet: '# 标题\n' },
   { label: '加粗', snippet: '**重点内容**' },
   { label: '引用', snippet: '> 这里写你的观点\n' },
-  { label: '代码', snippet: '```ts\nconsole.log("hello")\n```\n' },
+  { label: '代码', snippet: '```ts\nlogDebug("hello")\n```\n' },
   { label: '列表', snippet: '- 第一条\n- 第二条\n' },
   { label: '链接', snippet: '[链接标题](https://example.com)' },
   { label: '公式', snippet: '$E = mc^2$' },
@@ -202,8 +218,7 @@ async function submitPost() {
     ElMessage.success('帖子已提交审核，审核通过后会公开展示')
     await navigateTopLevel(router, '/discuss')
   } catch (error) {
-    console.error('发布帖子失败:', error)
-    ElMessage.error('发布失败，请稍后再试')
+    logWarn('发布帖子失败:', error)
   } finally {
     submitting.value = false
   }
@@ -226,8 +241,7 @@ async function loadEditingPost() {
     postForm.postContent = data.postContent || ''
     postForm.tags = Array.isArray(data.tags) ? [...data.tags] : []
   } catch (error) {
-    console.error('加载待修改帖子失败:', error)
-    ElMessage.error('帖子加载失败，请稍后重试')
+    logWarn('加载待修改帖子失败:', error)
     await router.replace({ name: 'discussion-detail', params: { postId: editingPostId.value } })
   } finally {
     loadingPost.value = false
@@ -248,7 +262,7 @@ onMounted(loadEditingPost)
 
 <style scoped>
 .compose-page {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: linear-gradient(180deg, #f7f8fb 0%, #f3f5f8 100%);
   color: var(--cw-text-1);
   font-family: var(--cw-font-sans);
@@ -339,7 +353,8 @@ onMounted(loadEditingPost)
 }
 
 .compose-card {
-  height: calc(100vh - 120px);
+  height: calc(100vh - 120px); height: calc(100dvh - 120px);
+  height: calc(100dvh - 120px);
   min-height: 620px;
   border: 1px solid var(--cw-border);
   border-radius: 10px;
@@ -639,10 +654,11 @@ onMounted(loadEditingPost)
   text-align: left;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
   .compose-card {
     height: auto;
-    min-height: calc(100vh - 100px);
+    min-height: calc(100vh - 100px); min-height: calc(100dvh - 100px);
+    min-height: calc(100dvh - 100px);
   }
 
   .editor-layout {
@@ -662,17 +678,30 @@ onMounted(loadEditingPost)
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
+  /* 主导航转成 .cw-offcanvas 抽屉，而不是窄屏直接隐藏 */
   .navbar {
-    padding: 0 16px;
+    padding: 0 12px;
+    gap: 8px;
   }
 
   .nav-left {
-    gap: 18px;
+    gap: 10px;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
-  .nav-left nav {
-    display: none;
+  .nav-left .cw-offcanvas {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .nav-left .cw-offcanvas button {
+    width: 100%;
+    padding: 12px;
+    font-size: 15px;
+    text-align: left;
   }
 
   .compose-shell {

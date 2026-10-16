@@ -14,7 +14,7 @@
             </div>
             <el-switch v-model="autoRefresh" inline-prompt active-text="自动" inactive-text="手动" />
             <el-tooltip content="刷新" placement="bottom">
-              <el-button :icon="Refresh" circle :loading="refreshing" aria-label="刷新容器池" @click="loadPools()" />
+              <el-button :icon="Refresh" circle :loading="refreshing" aria-label="刷新容器池" @click="loadPools(true)" />
             </el-tooltip>
           </div>
         </section>
@@ -190,6 +190,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import adminContainerApi, { type ContainerPoolStatus } from '@/api/adminContainerApi'
 import { errorText } from '@/api/request'
+import { logWarn } from '@/utils/logger'
 
 type TagType = 'success' | 'warning' | 'danger' | 'info'
 
@@ -239,18 +240,23 @@ function normalizePool(raw: any): ContainerPoolStatus {
   }
 }
 
+/**
+ * @param showLoading 首次加载/手动刷新按钮：显示 loading 并允许内联错误态；
+ *                    8s 自动刷新时传 false，请求也走 silent，避免后台抖动反复弹全局提示。
+ */
 async function loadPools(showLoading = false) {
   if (refreshing.value) return
   if (showLoading) loading.value = true
   refreshing.value = true
   loadError.value = ''
   try {
-    const response: any = await adminContainerApi.getPools()
+    const response: any = await adminContainerApi.getPools({ silent: !showLoading })
     const records = response?.data ?? response ?? []
     pools.value = Array.isArray(records) ? records.map(normalizePool) : []
     lastUpdatedAt.value = new Date()
   } catch (error) {
-    loadError.value = errorText(error, '容器池状态加载失败')
+    if (showLoading) loadError.value = errorText(error, '容器池状态加载失败')
+    else logWarn('容器池自动刷新失败:', error)
   } finally {
     loading.value = false
     refreshing.value = false
@@ -271,7 +277,7 @@ async function addContainer(language: string) {
     ElMessage.success(`${getLanguageLabel(language)} 容器已增加`)
     await loadPools()
   } catch (error) {
-    console.error('增加判题容器失败:', error)
+    logWarn('增加判题容器失败:', error)
   } finally {
     updateSet(addingLanguages, language, false)
   }
@@ -294,7 +300,7 @@ async function removeContainer(pool: ContainerPoolStatus, containerId: string) {
     ElMessage.success('容器已删除')
     await loadPools()
   } catch (error) {
-    console.error('删除判题容器失败:', error)
+    logWarn('删除判题容器失败:', error)
   } finally {
     updateSet(removingContainerIds, containerId, false)
   }
@@ -365,7 +371,7 @@ onBeforeUnmount(stopAutoRefresh)
 
 <style scoped>
 .pool-page {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--cw-bg-page);
   color: #25282d;
   font-family: var(--cw-font-sans);
@@ -735,7 +741,7 @@ onBeforeUnmount(stopAutoRefresh)
   font-size: 11px;
 }
 
-@media (max-width: 1050px) {
+@media (max-width: 1024px) {
   .pool-main {
     grid-template-columns: 28px minmax(140px, 1.2fr) repeat(3, 58px) minmax(130px, 1fr) 74px 34px;
   }
@@ -745,7 +751,7 @@ onBeforeUnmount(stopAutoRefresh)
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .topbar { padding: 0 16px; }
   .page-content { width: calc(100% - 28px); padding-top: 24px; }
   .page-heading { align-items: flex-start; flex-direction: column; }

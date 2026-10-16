@@ -2,10 +2,17 @@
   <div class="review-view">
     <header class="navbar">
       <div class="navbar-left">
+        <MobileNavToggle :open="nav.open.value" label="打开主导航" @toggle="nav.toggle" />
         <button class="logo" type="button" @click="goHome">
           <BrandLogo :size="28" />
         </button>
-        <nav class="nav-menu">
+        <nav class="nav-menu cw-offcanvas" :class="{ 'is-open': nav.open.value }" aria-label="主导航">
+          <div class="nav-drawer-head cw-only-phone">
+            <span>导航</span>
+            <button class="nav-drawer-close cw-tap" type="button" aria-label="收起导航" @click="nav.close">
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
           <button class="nav-item" type="button" @click="goHome">题库</button>
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item" type="button" @click="goDiscuss">讨论</button>
@@ -108,7 +115,7 @@
               </el-icon>
             </template>
           </el-table-column>
-          <el-table-column label="题目名称" min-width="320">
+          <el-table-column label="题目名称" :min-width="isPhone ? 170 : 320">
             <template #default="{ row }">
               <div class="question-cell">
                 <strong>{{ row.questionId }}. {{ row.title }}</strong>
@@ -116,7 +123,8 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="通过率" min-width="200">
+          <!-- 手机档收起通过率（进度条本身占宽），保留提交与操作 -->
+          <el-table-column v-if="!isPhone" label="通过率" min-width="200">
             <template #default="{ row }">
               <div class="rate-cell">
                 <el-progress :percentage="getPassRate(row.passRate)" :show-text="false" :stroke-width="8" />
@@ -260,6 +268,8 @@
     </el-dialog>
 
     <ReviewHistoryDrawer v-model:visible="historyDrawerVisible" />
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
@@ -269,6 +279,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Clock,
+  Close,
   Filter,
   QuestionFilled,
   Refresh,
@@ -277,8 +288,14 @@ import {
   Tickets,
   VideoPlay,
 } from '@element-plus/icons-vue'
+import { errorText, isLocalFailure } from '@/api/request'
+import { logWarn } from '@/utils/logger'
 import reviewApi, { type ReviewConfig, type ReviewQuestionDto, type ReviewRecord } from '@/api/reviewApi'
 import ReviewHistoryDrawer from '@/components/review/ReviewHistoryDrawer.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
+import { useBreakpoint } from '@/composables/useBreakpoint'
 import InboxButton from '@/components/notification/InboxButton.vue'
 import { navigateTopLevel } from '@/utils/navigation'
 
@@ -338,6 +355,9 @@ const reviewPresets: ReviewPreset[] = [
 ]
 
 const router = useRouter()
+// 手机档 / 平板窄屏下主导航转成抽屉
+const nav = useMobileNav()
+const { isPhone } = useBreakpoint()
 const keyword = ref('')
 const loading = ref(false)
 const savingConfig = ref(false)
@@ -488,6 +508,10 @@ const saveConfig = async () => {
     applyConfig(res?.data || res || {})
     configDialogVisible.value = false
     ElMessage.success('复习设置已保存')
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('保存复习设置失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '保存复习设置失败，请稍后重试'))
   } finally {
     savingConfig.value = false
   }
@@ -546,7 +570,7 @@ onActivated(loadReviewPage)
 
 <style scoped>
 .review-view {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--cw-bg-page);
   color: var(--cw-text-1);
   font-family: var(--cw-font-sans);
@@ -1001,7 +1025,7 @@ onActivated(loadReviewPage)
   width: 100%;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1024px) {
   .overview-panel {
     grid-template-columns: 1fr;
     gap: 28px;
@@ -1010,15 +1034,32 @@ onActivated(loadReviewPage)
   .progress-card {
     align-items: stretch;
   }
+
+  /* 搜索框改为可收缩，避免 769–1024 区间与右侧按钮挤爆顶栏 */
+  .search-input {
+    width: 160px;
+    flex: 0 1 160px;
+    min-width: 96px;
+  }
 }
 
-@media (max-width: 760px) {
-  .nav-menu {
-    display: none;
+@media (max-width: 768px) {
+  /* 主导航不再是"窄屏隐藏"，而是转成 .cw-offcanvas 抽屉（见响应式样式）。
+   * 搜索框在手机档仍收起，改由列表区筛选承担。 */
+  .navbar {
+    padding: 0 12px;
+    gap: 8px;
   }
 
-  .navbar {
-    padding: 0 14px;
+  .navbar-left {
+    gap: 10px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .navbar-right {
+    gap: 6px;
+    flex: 0 1 auto;
   }
 
   .search-input {

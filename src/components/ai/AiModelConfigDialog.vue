@@ -92,6 +92,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { CircleCheck, Connection } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import aiApi, { type UserAiConfigDetail, type UserAiConfigPayload } from '@/api/aiApi'
+import { errorText, isLocalFailure } from '@/api/request'
+import { logWarn } from '@/utils/logger'
 
 const props = withDefaults(
   defineProps<{
@@ -171,6 +173,10 @@ async function loadConfig() {
     originalApiKeyDisplay.value = config.apiKey || ''
     form.modelNames = [...(config.modelNames || [])]
     originalModels.value = [...(config.modelNames || [])]
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('加载模型配置失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '加载模型配置失败，请稍后重试'))
   } finally {
     loading.value = false
   }
@@ -192,6 +198,10 @@ async function testConnection() {
     form.modelNames = form.modelNames.filter((model) => availableModels.value.includes(model))
     if (models.length === 1) form.modelNames = [...models]
     ElMessage.success(`连接成功，发现 ${models.length} 个模型`)
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('测试连接失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '测试连接失败，请稍后重试'))
   } finally {
     testing.value = false
   }
@@ -220,6 +230,10 @@ async function saveConfig() {
     ElMessage.success(props.mode === 'create' ? '模型配置已添加' : '模型配置已更新')
     emit('saved', config)
     closeDialog()
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('保存模型配置失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '保存模型配置失败，请稍后重试'))
   } finally {
     saving.value = false
   }
@@ -318,7 +332,7 @@ watch(
   justify-content: flex-end;
   gap: 8px;
 }
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .connection-row {
     align-items: flex-start;
     flex-direction: column;

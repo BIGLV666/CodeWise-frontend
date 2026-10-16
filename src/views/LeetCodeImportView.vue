@@ -195,6 +195,7 @@ import questionImportApi, {
   type FunctionParameterDraft,
   type FunctionQuestionDraft,
 } from '@/api/questionImportApi'
+import { logWarn } from '@/utils/logger'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -279,7 +280,7 @@ async function parseQuestion() {
     parameters.value = parseParameters(response.data.parameterConfig)
     ElMessage.success('题目解析完成，请检查后保存')
   } catch (error) {
-    console.error('解析力扣题目失败:', error)
+    logWarn('解析力扣题目失败:', error)
   } finally {
     parsing.value = false
   }
@@ -319,7 +320,7 @@ async function saveQuestion() {
       query: { questionId: response.data },
     })
   } catch (error) {
-    console.error('保存核心函数题目失败:', error)
+    logWarn('保存核心函数题目失败:', error)
   } finally {
     saving.value = false
   }
@@ -354,7 +355,7 @@ function goHome() {
 
 <style scoped>
 .import-page {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--cw-bg-page);
   color: var(--cw-text-1);
   font-family: var(--cw-font-sans);
@@ -614,7 +615,7 @@ function goHome() {
   place-items: center;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   .page-content {
     width: min(100% - 28px, 1120px);
     padding-top: 28px;

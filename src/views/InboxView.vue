@@ -192,6 +192,7 @@ import notificationApi, {
 import { useNotificationStore } from '@/stores/notification'
 import AppNavBar from '@/components/layout/AppNavBar.vue'
 import { navigateTopLevel } from '@/utils/navigation'
+import { logWarn } from '@/utils/logger'
 
 const router = useRouter()
 const notificationStore = useNotificationStore()
@@ -326,7 +327,7 @@ async function loadNotifications() {
     hasNext.value = Boolean(data.hasNext)
   } catch (error) {
     errorMessage.value = '消息加载失败，请稍后重试'
-    console.error('通知列表加载失败:', error)
+    logWarn('通知列表加载失败:', error)
   } finally {
     loading.value = false
   }
@@ -353,8 +354,7 @@ async function selectNotification(item: NotificationSummary) {
       notificationStore.markOneRead()
     }
   } catch (error) {
-    ElMessage.error('消息详情加载失败，请稍后重试')
-    console.error('通知详情加载失败:', error)
+    logWarn('通知详情加载失败:', error)
   } finally {
     detailLoading.value = false
   }
@@ -369,7 +369,7 @@ async function readAll() {
     await notificationStore.refreshUnreadCount()
     ElMessage.success('已全部标记为已读')
   } catch (error) {
-    console.error('全部已读失败:', error)
+    logWarn('全部已读失败:', error)
   }
 }
 
@@ -387,7 +387,7 @@ async function removeSelected() {
     closeDetail()
     ElMessage.success('消息已删除')
   } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') console.error('删除通知失败:', error)
+    if (error !== 'cancel' && error !== 'close') logWarn('删除通知失败:', error)
   }
 }
 
@@ -473,7 +473,8 @@ onMounted(reload)
 
 <style scoped>
 .inbox-page {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
+  min-height: 100dvh;
   background: #f5f6f8;
   color: var(--cw-text-1);
 }
@@ -563,8 +564,9 @@ onMounted(reload)
 }
 .inbox-workspace {
   width: min(1240px, calc(100% - 64px));
-  height: calc(100vh - 164px);
-  min-height: 590px;
+  height: calc(100vh - 164px); height: calc(100dvh - 164px);
+  height: calc(100dvh - 164px);
+  min-height: 520px;
   margin: 0 auto 28px;
   border: 1px solid #e2e5e9;
   border-radius: 8px;
@@ -857,6 +859,8 @@ onMounted(reload)
   font-size: 12px;
 }
 .detail-content {
+  /* 长 URL / 长 token 不撑破详情卡片 */
+  overflow-wrap: anywhere;
   flex: 1;
   padding: 34px 0 46px 64px;
   color: #454a51;
@@ -892,7 +896,7 @@ onMounted(reload)
   --el-button-hover-bg-color: var(--cw-brand-dark);
   --el-button-hover-border-color: var(--cw-brand-dark);
 }
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   .navbar {
     padding: 0 16px;
   }
@@ -914,8 +918,9 @@ onMounted(reload)
   }
   .inbox-workspace {
     width: calc(100% - 20px);
-    height: calc(100vh - 132px);
-    min-height: 520px;
+    height: calc(100vh - 132px); height: calc(100dvh - 132px);
+    height: calc(100dvh - 132px);
+    min-height: 460px;
     margin: 0 10px 10px;
     grid-template-columns: 1fr;
   }

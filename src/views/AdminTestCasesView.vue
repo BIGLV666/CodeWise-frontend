@@ -156,6 +156,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import adminTestCaseApi, { type QuestionOverviewItem, type TestCaseItem } from '@/api/adminTestCaseApi'
 import questionApi, { type FunctionTestCasePayload } from '@/api/questionApi'
 import { errorText, unwrap } from '@/api/request'
+import { logWarn } from '@/utils/logger'
 
 const route = useRoute()
 const router = useRouter()
@@ -198,7 +199,6 @@ async function loadOverview() {
     overview.value = await adminTestCaseApi.getQuestionOverview()
   } catch (error) {
     overview.value = { items: [], total: 0 }
-    ElMessage.error(errorText(error, '题目概览加载失败'))
   } finally {
     overviewLoading.value = false
   }
@@ -309,7 +309,6 @@ async function saveCase() {
     }
     await loadOverview()
   } catch (error) {
-    ElMessage.error(errorText(error, '保存测试点失败'))
   } finally {
     saving.value = false
   }
@@ -340,7 +339,6 @@ async function saveFunctionBatch() {
     ElMessage.success(`已添加 ${count} 个函数测试用例`)
     if (version === selectionVersion) functionBatch.value = ''
   } catch (error) {
-    ElMessage.error(errorText(error, '添加函数测试用例失败'))
   } finally {
     saving.value = false
   }
@@ -367,7 +365,8 @@ async function removeCase(row: TestCaseItem) {
     if (version === selectionVersion) await loadSelection(String(questionId))
     await loadOverview()
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(errorText(error, '删除测试点失败'))
+    // 取消 / 关闭弹窗不是错误；真实失败已由 request 拦截器提示
+    if (error !== 'cancel' && error !== 'close') logWarn('删除测试点失败:', error)
   } finally {
     if (ownsSaving) saving.value = false
   }
@@ -378,7 +377,7 @@ onMounted(loadOverview)
 </script>
 
 <style scoped>
-.testcase-page { min-height: 100vh; color: var(--cw-text-1); background: var(--cw-bg-page); }
+.testcase-page { min-height: 100vh; min-height: 100dvh; color: var(--cw-text-1); background: var(--cw-bg-page); }
 .page-content { width: min(1420px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 64px; }
 .page-heading { margin-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .eyebrow { color: var(--cw-text-3); font-size: 11px; font-weight: 700; letter-spacing: .13em; }
@@ -405,5 +404,5 @@ h1 { margin: 7px 0 5px; color: var(--cw-text-1); font-size: 28px; letter-spacing
 .io-cell { margin: 0; font-family: var(--cw-font-mono); font-size: 11px; white-space: pre-wrap; word-break: break-all; }
 .limit-cell { color: var(--cw-text-3); font-size: 11px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
-@media (max-width: 1000px) { .testcase-layout { grid-template-columns: 1fr; } .page-content { width: calc(100% - 28px); padding-top: 28px; } }
+@media (max-width: 1024px) { .testcase-layout { grid-template-columns: 1fr; } .page-content { width: calc(100% - 28px); padding-top: 28px; } }
 </style>

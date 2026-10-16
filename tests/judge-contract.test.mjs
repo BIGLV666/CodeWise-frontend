@@ -33,6 +33,18 @@ function fixture(t, from) {
     ref, computed, watch, nextTick,
     onMounted: (callback) => mounted.push(callback), onBeforeUnmount: () => {},
     useRoute: () => route, useRouter: () => ({}), useUserStore: () => store,
+    // 断点与日志：这个夹具里一律按桌面档处理，日志走 no-op
+    useBreakpoint: () => ({
+      isNarrowPhone: ref(false),
+      isPhone: ref(false),
+      isTablet: ref(false),
+      isDesktop: ref(true),
+      isCompact: ref(false),
+    }),
+    useMediaQuery: () => ref(false),
+    breakpointQuery: () => '(max-width: 1280px)',
+    logWarn() {},
+    logDebug() {},
     self: {}, EditorWorker: class {},
     localStorage: { getItem: () => '99', setItem() {}, removeItem() {} },
     websocketService: {
@@ -93,8 +105,15 @@ test('WebSocket completion before HTTP response stays completed', async (t) => {
 for (const kind of ['business rejection', 'network rejection']) {
   test(`debug ${kind} clears loading`, async (t) => {
     const { state, api } = fixture(t)
+    // 业务码非 200 时，request.ts 的响应拦截器会把信封换成 Error 并 reject
+    // （带上 bizCode），页面侧永远走 catch。这里按真实契约抛，而不是返回一个
+    // 不会发生的"非 200 但不 reject"的信封。
     api.debug = kind === 'business rejection'
-      ? async () => ({ code: 4000207, message: '失败' })
+      ? async () => {
+          const bizError = new Error('失败')
+          bizError.bizCode = 4000207
+          throw bizError
+        }
       : async () => { throw new Error('offline') }
     await state.handleDebug()
     assert.equal(state.debugging.value, false)

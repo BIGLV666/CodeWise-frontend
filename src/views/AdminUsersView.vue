@@ -141,6 +141,7 @@ import adminUserApi, {
   type UserAppealDetail,
 } from '@/api/adminUserApi'
 import { errorText } from '@/api/request'
+import { logWarn } from '@/utils/logger'
 
 const searchUserId = ref('')
 const user = ref<AdminUserDto | null>(null)
@@ -212,7 +213,7 @@ async function banUser() {
     ElMessage.success('已封禁')
     await reloadCurrentUser()
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') console.error('封禁用户失败:', error)
+    if (error !== 'cancel' && error !== 'close') logWarn('封禁用户失败:', error)
   } finally {
     banLoading.value = false
   }
@@ -231,7 +232,7 @@ async function unbanUser() {
     ElMessage.success('已解封')
     await reloadCurrentUser()
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') console.error('解封用户失败:', error)
+    if (error !== 'cancel' && error !== 'close') logWarn('解封用户失败:', error)
   } finally {
     banLoading.value = false
   }
@@ -246,7 +247,6 @@ async function loadBanDetail() {
     user.value = { ...user.value, banTime: detail.banTime, status: detail.status }
     ElMessage.success('已刷新封禁信息')
   } catch (error) {
-    ElMessage.error(errorText(error, '封禁信息查询失败'))
   } finally {
     banLoading.value = false
   }
@@ -267,7 +267,6 @@ async function loadAppeals() {
     appeals.value = await adminUserApi.listAppeals()
   } catch (error) {
     appeals.value = []
-    ElMessage.error(errorText(error, '申诉列表加载失败'))
   } finally {
     appealsLoading.value = false
   }
@@ -282,7 +281,6 @@ async function openProcess(appeal: UserAppeal) {
     appealDetail.value = await adminUserApi.getAppealDetail(appeal.userAppealId)
   } catch (error) {
     processDialogVisible.value = false
-    ElMessage.error(errorText(error, '申诉详情加载失败'))
   } finally {
     detailLoading.value = false
   }
@@ -306,7 +304,7 @@ async function submitProcess(approve: boolean) {
     processDialogVisible.value = false
     await loadAppeals()
   } catch (error) {
-    if (error !== 'cancel' && error !== 'close') console.error('处理申诉失败:', error)
+    if (error !== 'cancel' && error !== 'close') logWarn('处理申诉失败:', error)
   } finally {
     processing.value = false
   }
@@ -316,7 +314,7 @@ onMounted(loadAppeals)
 </script>
 
 <style scoped>
-.users-page { min-height: 100vh; color: var(--cw-text-1); background: var(--cw-bg-page); }
+.users-page { min-height: 100vh; min-height: 100dvh; color: var(--cw-text-1); background: var(--cw-bg-page); }
 .page-content { width: min(1420px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 64px; }
 .page-heading { margin-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .eyebrow { color: var(--cw-text-3); font-size: 11px; font-weight: 700; letter-spacing: .13em; }
@@ -337,5 +335,10 @@ h1 { margin: 7px 0 5px; color: var(--cw-text-1); font-size: 28px; letter-spacing
 .process-form { margin-top: 16px; }
 :deep(.el-table th.el-table__cell) { background: var(--cw-bg-page); color: var(--cw-text-3); font-size: 12px; font-weight: 600; }
 :deep(.el-table td.el-table__cell) { color: var(--cw-text-3); font-size: 12px; }
-@media (max-width: 900px) { .page-content { width: calc(100% - 28px); padding-top: 28px; } }
+@media (max-width: 1024px) { .page-content { width: calc(100% - 28px); padding-top: 28px; } }
+@media (max-width: 768px) {
+  /* 页头与卡片头部在窄屏纵排，右侧按钮不再挤压标题 */
+  .page-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .summary-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
+}
 </style>

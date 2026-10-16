@@ -42,9 +42,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { Loading, Warning, ArrowLeft } from '@element-plus/icons-vue'
 import adminModerationApi from '@/api/adminModerationApi'
+import { errorText } from '@/api/request'
 import { renderMarkdown } from '@/utils/markdown'
 
 const route = useRoute()
@@ -52,7 +52,8 @@ const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
-const contentData = ref<any>({})
+// 内容为 null（已被删除等）时退化成空对象，避免模板访问 .title 抛错
+const contentData = ref<Record<string, any>>({})
 
 const renderedContent = computed(() => {
   if (!contentData.value.content) return ''
@@ -107,10 +108,10 @@ const loadContent = async () => {
       throw new Error('不支持的内容类型')
     }
 
-    contentData.value = res.data
-  } catch (err: any) {
-    error.value = err.message || '加载失败'
-    ElMessage.error(error.value)
+    contentData.value = res ?? {}
+  } catch (err) {
+    // 提示已由 request 拦截器统一弹出，这里只落地内联错误态
+    error.value = errorText(err, '内容加载失败')
   } finally {
     loading.value = false
   }
@@ -123,7 +124,8 @@ onMounted(() => {
 
 <style scoped>
 .content-render-view {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
+  min-height: 100dvh;
   background: var(--cw-bg-page);
   padding: clamp(1.5rem, 3vw, 2rem);
 }

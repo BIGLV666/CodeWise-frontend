@@ -1,10 +1,14 @@
 <template>
   <div class="notes-view">
-    <AppNavBar active="home" />
+    <AppNavBar active="home">
+      <template #actions>
+        <MobileNavToggle purpose="sidebar" :open="nav.open.value" :icon="Folder" label="打开文件夹" @toggle="nav.toggle" />
+      </template>
+    </AppNavBar>
 
     <div class="main-container">
       <!-- 左：文件夹栏 -->
-      <aside class="folder-panel">
+      <aside class="folder-panel cw-offcanvas" :class="{ 'is-open': nav.open.value }">
         <div class="panel-header">
           <span class="panel-title">文件夹</span>
           <el-button :icon="FolderAdd" text size="small" title="新建文件夹" @click="createFolder" />
@@ -140,6 +144,8 @@
         </div>
       </main>
     </div>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
@@ -148,17 +154,24 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Collection, Delete, Document, EditPen, Folder, FolderAdd, Notebook, Plus } from '@element-plus/icons-vue'
 import AppNavBar from '@/components/layout/AppNavBar.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
 import noteApi, {
   type NoteBriefVo,
   type NoteDetailVo,
   type NoteFolderVo,
 } from '@/api/noteApi'
 import { renderMarkdown } from '@/utils/markdown'
+import { logWarn } from '@/utils/logger'
 
 /** 「全部笔记」的虚拟文件夹 key（不映射为 folderId） */
 const ALL_FOLDER = '__all__'
 /** 「未分类」的虚拟文件夹 key（映射为 folderId 空值） */
 const UNCATEGORIZED = '__uncategorized__'
+
+// 手机档文件夹栏转成抽屉
+const nav = useMobileNav()
 
 const folders = ref<NoteFolderVo[]>([])
 const foldersLoading = ref(false)
@@ -242,7 +255,7 @@ async function loadFolders() {
       noteCount: Number(item.noteCount ?? 0),
     }))
   } catch (error) {
-    console.error('加载文件夹失败:', error)
+    logWarn('加载文件夹失败:', error)
     folders.value = []
   } finally {
     foldersLoading.value = false
@@ -264,7 +277,7 @@ async function loadNotes(reset = true) {
     hasNext.value = Boolean(data.hasNext)
     total.value = Number(data.total ?? 0)
   } catch (error) {
-    console.error('加载笔记列表失败:', error)
+    logWarn('加载笔记列表失败:', error)
     if (reset) notes.value = []
   } finally {
     notesLoading.value = false
@@ -307,7 +320,7 @@ async function selectNote(note: NoteBriefVo) {
     editor.content = detail?.content || ''
     editor.folderId = detail?.folderId == null ? UNCATEGORIZED : String(detail.folderId)
   } catch (error) {
-    console.error('加载笔记详情失败:', error)
+    logWarn('加载笔记详情失败:', error)
     currentNoteId.value = ''
   } finally {
     detailLoading.value = false
@@ -359,7 +372,7 @@ async function saveNote() {
     dirty.value = false
     await Promise.all([loadNotes(), loadFolders()])
   } catch (error) {
-    console.error('保存笔记失败:', error)
+    logWarn('保存笔记失败:', error)
   } finally {
     savingNote.value = false
   }
@@ -378,7 +391,7 @@ async function moveCurrentNote() {
     if (noteDetail.value) noteDetail.value = { ...noteDetail.value, folderId }
     await Promise.all([loadNotes(), loadFolders()])
   } catch (error) {
-    console.error('移动笔记失败:', error)
+    logWarn('移动笔记失败:', error)
   } finally {
     suppressDirty.value = false
   }
@@ -412,7 +425,7 @@ async function removeNote() {
     editor.title = ''
     await Promise.all([loadNotes(), loadFolders()])
   } catch (error) {
-    console.error('删除笔记失败:', error)
+    logWarn('删除笔记失败:', error)
   }
 }
 
@@ -428,7 +441,7 @@ async function createFolder() {
     ElMessage.success('文件夹已创建')
     await loadFolders()
   } catch (error) {
-    if (error !== 'cancel') console.error('创建文件夹失败:', error)
+    if (error !== 'cancel') logWarn('创建文件夹失败:', error)
   }
 }
 
@@ -445,7 +458,7 @@ async function renameFolder(folder: NoteFolderVo) {
     ElMessage.success('文件夹已重命名')
     await loadFolders()
   } catch (error) {
-    if (error !== 'cancel') console.error('重命名文件夹失败:', error)
+    if (error !== 'cancel') logWarn('重命名文件夹失败:', error)
   }
 }
 
@@ -471,7 +484,7 @@ async function removeFolder(folder: NoteFolderVo) {
     }
     await Promise.all([loadFolders(), loadNotes()])
   } catch (error) {
-    console.error('删除文件夹失败:', error)
+    logWarn('删除文件夹失败:', error)
   }
 }
 
@@ -509,7 +522,9 @@ onMounted(() => {
 
 <style scoped>
 .notes-view {
-  height: 100vh;
+  height: 100vh; height: 100dvh;
+  /* dvh：移动端地址栏收放不顶出底部内容 */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -757,11 +772,32 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .folder-panel {
-    display: none;
+  /* 手机档改为上下堆叠：文件夹进抽屉，笔记列表在上、编辑器在下。
+   * 三栏横排在 375px 下会把编辑器挤到只剩一百多像素。 */
+  .main-container {
+    flex-direction: column;
+    overflow: visible;
   }
+
   .note-list-panel {
-    width: 220px;
+    width: 100%;
+    max-height: 42vh;
+    border-right: 0;
+    border-bottom: 1px solid var(--cw-border);
+  }
+
+  .editor-panel {
+    min-height: 50vh;
+  }
+
+  /* 编辑器工具栏在窄屏换行，避免固定宽输入框顶破容器 */
+  .editor-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .title-input {
+    width: 100%;
   }
 }
 </style>

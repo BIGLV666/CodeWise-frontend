@@ -10,6 +10,12 @@
             </div>
 
             <el-skeleton v-if="listLoading && solutions.length === 0" :rows="6" animated />
+            <!-- 失败时不能伪装成"暂无题解"：加载失败与真的没有题解是两回事 -->
+            <div v-else-if="!listLoading && solutions.length === 0 && listError" class="list-error">
+                <el-icon><Warning /></el-icon>
+                <p>{{ listError }}</p>
+                <el-button text type="primary" @click="loadSolutions">重新加载</el-button>
+            </div>
             <el-empty
                 v-else-if="!listLoading && solutions.length === 0"
                 description="暂无题解，来发布第一篇吧"
@@ -250,12 +256,15 @@ import {
     Edit,
     EditPen,
     Loading,
-    View
+    View,
+    Warning
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import communityApi from '@/api/communityApi';
+import { errorText, isLocalFailure } from '@/api/request';
 import { normalizeAvatarUrl } from '@/utils/avatar';
 import { renderMarkdown } from '@/utils/markdown';
+import { logWarn } from '@/utils/logger'
 
 interface UserSummary {
     userId?: string;
@@ -300,6 +309,7 @@ const activatedOnce = ref(false);
 const openedInitialSolutionId = ref('');
 const solutions = ref<SolutionSummary[]>([]);
 const listLoading = ref(false);
+const listError = ref('');
 const hasNext = ref(false);
 const nextCursor = ref<string | null>(null);
 const detail = ref<SolutionDetail | null>(null);
@@ -352,8 +362,11 @@ const mapComment = (raw: any): SolutionComment => ({
 });
 
 async function loadSolutions() {
-    if (listLoading.value || (solutions.value.length > 0 && !hasNext.value)) return;
+    // 出错后允许点"重新加载"：错误态下不复用"已有数据就不重复请求"的短路条件
+    if (listLoading.value) return;
+    if (solutions.value.length > 0 && !hasNext.value && !listError.value) return;
     listLoading.value = true;
+    listError.value = '';
     try {
         const data = unwrap<any>(
             await communityApi.listSolutions({
@@ -373,7 +386,8 @@ async function loadSolutions() {
         hasNext.value = Boolean(data.hasNext);
         nextCursor.value = data.nextCursor == null ? null : String(data.nextCursor);
     } catch (error) {
-        console.error('加载题解失败:', error);
+        logWarn('加载题解失败:', error);
+        listError.value = errorText(error, '题解加载失败，请稍后重试');
     } finally {
         listLoading.value = false;
     }
@@ -391,7 +405,7 @@ async function openDetail(solutionId: string) {
     try {
         detail.value = mapDetail(unwrap<any>(await communityApi.getSolution(solutionId), {}));
     } catch (error) {
-        console.error('加载题解详情失败:', error);
+        logWarn('加载题解详情失败:', error);
         backToList();
     } finally {
         detailLoading.value = false;
@@ -458,7 +472,9 @@ async function saveSolution() {
             else mode.value = 'list';
         }
     } catch (error) {
-        console.error('保存题解失败:', error);
+        logWarn('保存题解失败:', error);
+        // 本地失败（拿不到 requestId 等）不经过拦截器，需要自己提示
+        if (isLocalFailure(error)) ElMessage.error(errorText(error, '保存题解失败，请稍后重试'));
     } finally {
         saving.value = false;
     }
@@ -481,7 +497,7 @@ async function removeSolution() {
         ElMessage.success('题解已删除');
         backToList();
     } catch (error: any) {
-        if (error !== 'cancel' && error !== 'close') console.error('删除题解失败:', error);
+        if (error !== 'cancel' && error !== 'close') logWarn('删除题解失败:', error);
     } finally {
         deleting.value = false;
     }
@@ -502,7 +518,7 @@ async function toggleSolutionLike() {
         );
         if (summary) summary.likeCount = detail.value.likeCount;
     } catch (error) {
-        console.error('题解点赞失败:', error);
+        logWarn('题解点赞失败:', error);
     } finally {
         liking.value = false;
     }
@@ -538,7 +554,7 @@ async function loadComments() {
         commentsHasNext.value = Boolean(data.hasNext);
         commentsNextCursor.value = data.nextCursor == null ? null : String(data.nextCursor);
     } catch (error) {
-        console.error('加载题解评论失败:', error);
+        logWarn('加载题解评论失败:', error);
     } finally {
         commentsLoading.value = false;
     }
@@ -581,7 +597,8 @@ async function submitComment() {
         await loadComments();
         ElMessage.success('评论已发表');
     } catch (error) {
-        console.error('发表评论失败:', error);
+        logWarn('发表评论失败:', error);
+        if (isLocalFailure(error)) ElMessage.error(errorText(error, '发表评论失败，请稍后重试'));
     } finally {
         commenting.value = false;
     }
@@ -601,7 +618,7 @@ async function removeComment(comment: SolutionComment) {
         detail.value.commentCount = Math.max(0, detail.value.commentCount - 1);
         ElMessage.success('评论已删除');
     } catch (error: any) {
-        if (error !== 'cancel' && error !== 'close') console.error('删除评论失败:', error);
+        if (error !== 'cancel' && error !== 'close') logWarn('删除评论失败:', error);
     }
 }
 
@@ -909,5 +926,25 @@ watch(
     padding: 12px 0;
     background: #fff;
     border-top: 1px solid var(--cw-bg-subtle);
+}
+
+.list-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 40px 16px;
+    color: var(--cw-text-3);
+    font-size: 13px;
+    text-align: center;
+}
+
+.list-error .el-icon {
+    font-size: 26px;
+    color: var(--cw-warning);
+}
+
+.list-error p {
+    margin: 0;
 }
 </style>

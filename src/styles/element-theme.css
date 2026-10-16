@@ -100,3 +100,61 @@
   color: var(--cw-text-2);
   font-weight: 600;
 }
+
+/*
+ * 窄屏适配。
+ *
+ * Element Plus 自带的样式几乎没有宽度媒体查询，而 dialog / drawer 的宽度是
+ * 各页面用 width="460px"、size="440px" 写在模板里的，窄屏会直接超出视口。
+ * 全站十几个弹窗逐个改模板既啰嗦又容易漏，统一在这里按手机档兜底：
+ *   - el-dialog：宽度属性走内联 style，必须 !important 才能压过；
+ *   - el-drawer：纵向抽屉的高度属性不在这里覆盖，只收横向抽屉的宽度；
+ *   - el-message / el-message-box：改用 EP 自己的 CSS 变量，不用 !important。
+ * 只在 768px 及以下生效，桌面端表现完全不变。
+ */
+@media (max-width: 768px) {
+  .el-dialog {
+    --el-dialog-width: auto;
+    width: auto !important;
+    max-width: calc(100vw - 32px);
+    margin: 6vh auto 16px;
+  }
+
+  .el-drawer.ltr,
+  .el-drawer.rtl {
+    width: 100vw !important;
+  }
+
+  .el-message-box {
+    --el-messagebox-width: calc(100vw - 32px);
+  }
+
+  .el-message-box__btns {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* 分页器在窄屏换行，避免翻页按钮被挤到屏幕外 */
+  .el-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 8px;
+  }
+
+  /* 日期/时间选择面板默认固定宽，窄屏下贴边 */
+  .el-picker__popper {
+    max-width: calc(100vw - 24px);
+  }
+
+  /* 通知条与消息提示贴边 */
+  .el-notification {
+    right: 12px;
+    width: calc(100vw - 24px);
+  }
+
+  /* 表格在窄屏必须能横向滚动，而不是把列挤成一条线 */
+  .el-table__body-wrapper,
+  .el-table__header-wrapper {
+    overflow-x: auto;
+  }
+}

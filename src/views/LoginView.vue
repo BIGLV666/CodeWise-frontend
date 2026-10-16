@@ -170,6 +170,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import userApi from '@/api/userApi'
 import { useUserStore } from '@/stores/User'
 import type UserDto from '@/types/UserDto'
+import { logWarn } from '@/utils/logger'
 
 const REMEMBERED_ACCOUNT_KEY = 'codewise_remembered_account'
 const CODE_COUNTDOWN_SECONDS = 60
@@ -247,7 +248,7 @@ async function sendLoginCode() {
     ElMessage.success('验证码已发送，请查收邮件')
     startCountdown()
   } catch (error) {
-    console.error('发送验证码失败:', error)
+    logWarn('发送验证码失败:', error)
   } finally {
     sendingCode.value = false
   }
@@ -278,7 +279,7 @@ async function handleCodeLogin() {
     const response: any = await userApi.emailLoginForCode(codeForm.email, codeForm.code)
     await applyLoginResult(response?.data ?? response, codeForm.email)
   } catch (error) {
-    console.error('验证码登录失败:', error)
+    logWarn('验证码登录失败:', error)
   } finally {
     loading.value = false
   }
@@ -297,7 +298,7 @@ async function handleLogin() {
       loginForm.remember ? loginForm.username : undefined,
     )
   } catch (error) {
-    console.error('登录失败:', error)
+    logWarn('登录失败:', error)
   } finally {
     loading.value = false
   }
@@ -309,7 +310,7 @@ async function handleLogin() {
   --ink: var(--cw-text-1);
   --muted: #68707b;
   --accent: var(--cw-brand);
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   min-height: 100dvh;
   position: relative;
   overflow: hidden;
@@ -431,7 +432,7 @@ async function handleLogin() {
 .register-row { margin: 22px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
 .privacy-note { margin: 46px 0 0; color: var(--cw-text-3); font-size: 11px; line-height: 1.6; text-align: center; }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .brand-bar { display: none; }
   .auth-shell { width: 100%; min-height: 100dvh; margin: 0; grid-template-columns: minmax(0,1fr) minmax(350px,.9fr); border: 0; border-radius: 0; }
   .workspace-showcase { padding: 70px 34px 34px; }
@@ -439,7 +440,7 @@ async function handleLogin() {
   .editor-body pre { font-size: 11px; }
   .login-column { padding: 36px; }
 }
-@media (max-width: 680px) {
+@media (max-width: 768px) {
   .auth-page { overflow-y: auto; }
   .auth-shell { display: block; }
   .workspace-showcase { display: none; }

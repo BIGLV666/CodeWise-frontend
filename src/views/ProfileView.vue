@@ -2,10 +2,17 @@
   <div class="profile-view">
     <header class="navbar">
       <div class="navbar-left">
+        <MobileNavToggle :open="nav.open.value" label="打开主导航" @toggle="nav.toggle" />
         <button class="logo" type="button" @click="goHome">
           <BrandLogo :size="28" />
         </button>
-        <nav class="nav-menu">
+        <nav class="nav-menu cw-offcanvas" :class="{ 'is-open': nav.open.value }" aria-label="主导航">
+          <div class="nav-drawer-head cw-only-phone">
+            <span>导航</span>
+            <button class="nav-drawer-close cw-tap" type="button" aria-label="收起导航" @click="nav.close">
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
           <button class="nav-item" type="button" @click="goHome">题库</button>
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item" type="button" @click="goDiscuss">讨论</button>
@@ -439,6 +446,8 @@
         </div>
       </template>
     </el-dialog>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
@@ -451,6 +460,7 @@ import {
   ArrowDown,
   CircleCheck,
   CircleClose,
+  Close,
   Cpu,
   Delete,
   Edit,
@@ -462,6 +472,7 @@ import {
   Trophy,
   WarningFilled,
 } from '@element-plus/icons-vue'
+import { errorText, isLocalFailure } from '@/api/request'
 import userApi from '@/api/userApi'
 import questionApi from '@/api/questionApi'
 import reviewApi from '@/api/reviewApi'
@@ -474,7 +485,11 @@ import type UserDto from '@/types/UserDto'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
 import InboxButton from '@/components/notification/InboxButton.vue'
 import AiModelConfigDialog from '@/components/ai/AiModelConfigDialog.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
 import { navigateTopLevel } from '@/utils/navigation'
+import { logWarn } from '@/utils/logger'
 
 interface SubmitRecord {
   submitRecordId: string
@@ -488,6 +503,8 @@ interface SubmitRecord {
 
 const router = useRouter()
 const route = useRoute()
+// 手机档主导航转成抽屉
+const nav = useMobileNav()
 const userStore = useUserStore()
 const loading = ref(false)
 const profileSection = ref<'overview' | 'content' | 'ai'>('overview')
@@ -598,7 +615,7 @@ const loadMyContent = async (reset = false) => {
     
     myContentHasNext.value = Boolean(page.hasNext ?? page.hasMore)
   } catch (error) {
-    console.error('我的内容加载失败:', error)
+    logWarn('我的内容加载失败:', error)
   } finally {
     myContentLoading.value = false
   }
@@ -863,8 +880,7 @@ async function submitAppeal() {
     // 刷新列表
     await loadMyContent(true)
   } catch (error) {
-    console.error('提交申诉失败:', error)
-    ElMessage.error('提交申诉失败，请稍后重试')
+    logWarn('提交申诉失败:', error)
   } finally {
     appealSubmitting.value = false
   }
@@ -917,14 +933,14 @@ const loadProfile = async () => {
       const user = userResult.value?.data ?? userResult.value ?? {}
       applyUserInfo(user)
     } else {
-      console.error('用户信息加载失败:', userResult.reason)
+      logWarn('用户信息加载失败:', userResult.reason)
     }
 
     if (recordsResult.status === 'fulfilled') {
       submitRecords.value = getCursorRecords(recordsResult.value).map(normalizeRecord)
     } else {
       submitRecords.value = []
-      console.error('提交记录加载失败:', recordsResult.reason)
+      logWarn('提交记录加载失败:', recordsResult.reason)
     }
 
     if (favoritesResult.status === 'fulfilled') {
@@ -932,7 +948,7 @@ const loadProfile = async () => {
       favorites.value = Array.isArray(favoriteData) ? favoriteData : []
     } else {
       favorites.value = []
-      console.error('收藏夹加载失败:', favoritesResult.reason)
+      logWarn('收藏夹加载失败:', favoritesResult.reason)
     }
   } finally {
     loading.value = false
@@ -953,7 +969,7 @@ const loadAiConfigs = async () => {
   } catch (error) {
     aiConfigs.value = []
     aiConfigError.value = 'AI 配置服务暂不可用，请确认 service-ai 已启动'
-    console.error('AI 配置加载失败:', error)
+    logWarn('AI 配置加载失败:', error)
   } finally {
     aiConfigLoading.value = false
   }
@@ -982,7 +998,9 @@ const removeModelConfig = async (config: UserAiConfigSummary) => {
     ElMessage.success('模型配置已删除')
     await loadAiConfigs()
   } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') throw error
+    // 取消不是错误；真实失败已由 request 拦截器统一提示。
+    // 这里之前会把错误重新抛出，结果只多出一条未捕获的 promise rejection。
+    if (error !== 'cancel' && error !== 'close') logWarn('删除模型配置失败:', error)
   }
 }
 
@@ -1010,6 +1028,10 @@ const saveProfile = async () => {
     applyUserInfo(latestUser)
     profileDialogVisible.value = false
     ElMessage.success('资料已更新')
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('保存资料失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '保存资料失败，请稍后重试'))
   } finally {
     profileSaving.value = false
   }
@@ -1029,6 +1051,10 @@ const handleAvatarChange = async (event: Event) => {
       await loadProfile()
     }
     ElMessage.success('头像已更新')
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('上传头像失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '上传头像失败，请稍后重试'))
   } finally {
     avatarUploading.value = false
     input.value = ''
@@ -1094,7 +1120,8 @@ onMounted(async () => {
 
 <style scoped>
 .profile-view {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
+  min-height: 100dvh;
   background: var(--cw-bg-page);
   color: var(--cw-text-1);
   font-family: var(--cw-font-sans);
@@ -1712,7 +1739,7 @@ onMounted(async () => {
   color: var(--cw-text-3);
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
   .profile-shell,
   .stats-grid {
     grid-template-columns: 1fr;
@@ -1724,9 +1751,20 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 720px) {
-  .nav-menu {
-    display: none;
+@media (max-width: 768px) {
+  /* 主导航转成 .cw-offcanvas 抽屉；顶部留白与右侧簇按手机收窄 */
+  .navbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .navbar-left {
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .navbar-right {
+    gap: 6px;
   }
 
   .profile-shell {

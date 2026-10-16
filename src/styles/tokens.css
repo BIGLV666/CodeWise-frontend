@@ -55,4 +55,25 @@
 
   /* ---- 布局 ---- */
   --cw-navbar-height: 58px;
+
+  /* ---- 响应式断点（语义档位） ----
+   * 媒体查询里不能用 var()，所以这里只作文档与单一事实来源：
+   *   560px   窄手机
+   *   768px   手机     （顶部导航收起、页面级侧栏转抽屉、弹窗自适应）
+   *  1024px   平板     （多栏退单栏、侧栏收窄成图标轨）
+   *  1280px   宽屏收窄 （大桌面三栏退两栏，不属于移动档）
+   * 新增媒体查询只允许用这四个值，由 tests/responsive-contract.test.mjs 锁死。
+   * JS 侧同一组值见 src/composables/useBreakpoint.ts。
+   */
+
+  /* ---- 触摸与安全区 ---- */
+  /* 触屏可点目标的最小边长 */
+  --cw-tap-target: 40px;
+  --cw-safe-top: env(safe-area-inset-top, 0px);
+  --cw-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --cw-safe-left: env(safe-area-inset-left, 0px);
+  --cw-safe-right: env(safe-area-inset-right, 0px);
+
+  /* 页面左右留白：手机档在 responsive.css 里收窄 */
+  --cw-page-gutter: 28px;
 }

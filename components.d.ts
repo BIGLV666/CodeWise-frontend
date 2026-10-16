@@ -64,6 +64,8 @@ declare module 'vue' {
     FavoritesProgressCard: typeof import('./src/components/favorites/FavoritesProgressCard.vue')['default']
     FavoritesSidebar: typeof import('./src/components/favorites/FavoritesSidebar.vue')['default']
     InboxButton: typeof import('./src/components/notification/InboxButton.vue')['default']
+    MobileNavBackdrop: typeof import('./src/components/layout/MobileNavBackdrop.vue')['default']
+    MobileNavToggle: typeof import('./src/components/layout/MobileNavToggle.vue')['default']
     NotificationRuntime: typeof import('./src/components/notification/NotificationRuntime.vue')['default']
     PendingPostList: typeof import('./src/components/admin/PendingPostList.vue')['default']
     PendingSolutionList: typeof import('./src/components/admin/PendingSolutionList.vue')['default']

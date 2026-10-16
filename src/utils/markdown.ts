@@ -16,6 +16,7 @@ import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
 import 'highlight.js/styles/github.css'
 import 'katex/dist/katex.min.css'
+import { logWarn } from '@/utils/logger'
 
 hljs.registerLanguage('bash', bash)
 hljs.registerLanguage('shell', bash)
@@ -77,7 +78,7 @@ export function renderMarkdown(source: string) {
   try {
     return sanitizeHtml(String(markdown.parse(source || '')))
   } catch (error) {
-    console.error('Markdown 渲染失败:', error)
+    logWarn('Markdown 渲染失败:', error)
     return '<p>Markdown 预览暂时无法渲染，请检查公式或代码块是否完整。</p>'
   }
 }

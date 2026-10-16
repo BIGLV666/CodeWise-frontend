@@ -1,9 +1,16 @@
 <template>
   <div class="agent-view">
-    <AppNavBar active="agent" />
+    <AppNavBar active="agent">
+      <template #actions>
+        <MobileNavToggle purpose="sidebar" :open="nav.open.value" :icon="ChatLineRound" label="打开会话列表" @toggle="nav.toggle" />
+      </template>
+    </AppNavBar>
 
     <main class="agent-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
-      <aside class="agent-sidebar" :class="{ collapsed: sidebarCollapsed }">
+      <aside
+        class="agent-sidebar cw-offcanvas"
+        :class="{ collapsed: sidebarCollapsed, 'is-open': nav.open.value }"
+      >
         <div class="logo-row">
           <button class="brand" type="button" @click="goHome">
             <BrandLogo :size="24" />
@@ -245,6 +252,8 @@
         </div>
       </section>
     </main>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
@@ -278,7 +287,11 @@ import { errorText } from '@/api/request'
 import { renderMarkdown } from '@/utils/markdown'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
 import AppNavBar from '@/components/layout/AppNavBar.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
 import { navigateTopLevel } from '@/utils/navigation'
+import { logWarn } from '@/utils/logger'
 
 interface ChatMessage {
   id: string
@@ -336,6 +349,8 @@ const TOOL_ICONS: Record<string, any> = {
 }
 
 const router = useRouter()
+// 手机档会话侧栏转成抽屉
+const nav = useMobileNav()
 const configs = ref<UserAiConfigSummary[]>([])
 const configsLoading = ref(false)
 const conversations = ref<AgentConversation[]>([])
@@ -471,7 +486,7 @@ async function loadConfigs() {
       handleConfigChange()
     }
   } catch (error) {
-    console.error('Agent 模型配置加载失败:', error)
+    logWarn('Agent 模型配置加载失败:', error)
   } finally {
     configsLoading.value = false
   }
@@ -802,13 +817,15 @@ onBeforeUnmount(() => {
   --code-bg: #f9fafb;
   --success: var(--cw-success);
   --error: var(--cw-danger);
-  height: 100vh;
+  height: 100vh; height: 100dvh;
+  /* dvh：移动端地址栏收放时聊天区高度不再跳动 */
+  height: 100dvh;
   overflow: hidden;
   background: var(--cw-bg-page);
   color: var(--text-primary);
   font-family: var(--cw-font-sans);
 }
-.agent-shell { width: min(1380px, calc(100% - 56px)); height: calc(100vh - 58px); margin: 0 auto; padding: 24px 0; display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; transition: grid-template-columns 0.2s var(--ease-in-out, ease); }
+.agent-shell { width: min(1380px, calc(100% - 56px)); height: calc(100vh - 58px); height: calc(100dvh - 58px); height: calc(100dvh - 58px); margin: 0 auto; padding: 24px 0; display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; transition: grid-template-columns 0.2s var(--ease-in-out, ease); }
 .agent-shell.sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr); }
 .agent-sidebar { min-height: 0; border: 1px solid #e6e9ee; border-radius: 8px; background: #fff; padding: 8px 10px; display: flex; flex-direction: column; overflow: hidden; }
 .logo-row { height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -922,6 +939,28 @@ onBeforeUnmount(() => {
 .send-btn:hover:not(:disabled) { background: var(--accent-hover); }
 .send-btn:disabled { opacity: 0.4; cursor: default; }
 
-@media (max-width: 820px) { .agent-shell { width: calc(100% - 24px); padding: 12px 0; grid-template-columns: 1fr; } .agent-sidebar { display: none; } .composer-hint { display: none; } }
+@media (max-width: 768px) {
+  /* 会话侧栏不再是"窄屏隐藏"：改成 .cw-offcanvas 抽屉，由顶栏按钮开合 */
+  .agent-shell {
+    width: calc(100% - 24px);
+    padding: 12px 0;
+    grid-template-columns: 1fr;
+  }
+
+  .composer-hint {
+    display: none;
+  }
+
+  /* 触摸目标放大到 40px 以上 */
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .send-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
 @media (prefers-reduced-motion: reduce) { .status-shimmer, .tool-row[data-state='running']::after { animation: none; } }
 </style>

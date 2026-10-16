@@ -344,7 +344,6 @@ async function loadMore() {
     
     hasNext.value = Boolean(page.hasMore)
   } catch (error) {
-    ElMessage.error(errorText(error, '加载更多失败'))
   } finally {
     loadingMore.value = false
   }
@@ -396,7 +395,6 @@ async function review(row: ModerationRow, status: number) {
     // 处理完即离开待审列表，本地移除比整页重载更省一次请求。
     rows.value = rows.value.filter((item) => item.id !== row.id)
   } catch (error) {
-    ElMessage.error(errorText(error, '操作失败'))
   } finally {
     markPending(row.id, false)
   }
@@ -436,7 +434,6 @@ async function changeStatus(row: ModerationRow, status: number) {
     // 状态原地更新，管理员可以立刻撤销刚才的操作。
     rows.value = rows.value.map((item) => (item.id === row.id ? { ...item, status } : item))
   } catch (error) {
-    ElMessage.error(errorText(error, '操作失败'))
   } finally {
     markPending(row.id, false)
   }
@@ -450,7 +447,6 @@ async function openDetail(row: ModerationRow) {
     const response: any = await adminModerationApi.getDetail(row.type, row.id)
     detail.value = response?.data ?? response ?? null
   } catch (error) {
-    ElMessage.error(errorText(error, '详情加载失败'))
   } finally {
     detailLoading.value = false
   }
@@ -461,7 +457,7 @@ onMounted(() => loadList(true))
 
 <style scoped>
 .moderation-page {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--cw-bg-page);
 }
 
@@ -567,6 +563,26 @@ onMounted(() => loadList(true))
   gap: 16px;
   padding: 16px 0;
   border-bottom: 1px solid #f2f6fc;
+}
+
+@media (max-width: 768px) {
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .content-row {
+    flex-direction: column;
+    /* 纵排时必须 stretch：父级原本是 align-items: flex-start，
+       否则子项按内容宽度撑开，长摘要会把整页顶宽 */
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .content-row .row-actions {
+    align-self: flex-start;
+  }
 }
 
 .content-row:last-child {

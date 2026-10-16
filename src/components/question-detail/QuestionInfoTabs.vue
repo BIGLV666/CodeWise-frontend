@@ -591,7 +591,8 @@ const getFunctionParameterPlaceholder = (type: string) => {
   padding: 8px 0;
   height: 100%;
   overflow-y: auto;
-  max-height: calc(100vh - 350px);
+  max-height: calc(100vh - 350px); max-height: calc(100dvh - 350px);
+  max-height: calc(100dvh - 350px);
 }
 
 .submissions-list .el-table {
@@ -791,7 +792,7 @@ const getFunctionParameterPlaceholder = (type: string) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: calc(100vh - 300px);
+  max-height: calc(100vh - 300px); max-height: calc(100dvh - 300px);
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -932,6 +933,13 @@ const getFunctionParameterPlaceholder = (type: string) => {
 
   .meta-info {
     margin-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  /* 用例页签在触屏上要能点准 */
+  .function-case-tab {
+    height: var(--cw-tap-target);
   }
 }
 </style>

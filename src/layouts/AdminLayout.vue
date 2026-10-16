@@ -1,6 +1,14 @@
 <template>
   <div class="admin-layout" :class="{ collapsed }">
-    <aside class="admin-sidebar" :class="{ collapsed }">
+    <header class="admin-mobile-bar cw-only-phone">
+      <MobileNavToggle purpose="sidebar" :open="nav.open.value" label="打开管理菜单" @toggle="nav.toggle" />
+      <span class="mobile-bar-title">管理中心</span>
+      <button class="mobile-bar-exit cw-tap" type="button" aria-label="退出登录" @click="logout">
+        <el-icon><SwitchButton /></el-icon>
+      </button>
+    </header>
+
+    <aside class="admin-sidebar cw-offcanvas" :class="{ collapsed, 'is-open': nav.open.value }">
       <header class="sidebar-header">
         <button class="brand-button" type="button" aria-label="返回首页" @click="goHome">
           <BrandLogo :size="28" :show-name="false" />
@@ -51,19 +59,46 @@
     <div class="admin-main" :class="{ expanded: collapsed }">
       <router-view />
     </div>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+/**
+ * 管理后台外壳。
+ *
+ * 三档布局：
+ *  - 桌面（>1024）：240px 侧栏，可手动收起成 72px 图标轨；
+ *  - 平板（769–1024）：默认收成 72px 图标轨（仍可手动展开）；
+ *  - 手机（≤768）：侧栏转成左侧抽屉（.cw-offcanvas），顶栏给一个汉堡按钮。
+ *    抽屉里始终显示文字，所以手机档强制 collapsed = false。
+ */
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { DArrowLeft, DArrowRight, Files, MagicStick, Platform, DocumentChecked, ChatLineSquare, SwitchButton, User, Warning } from '@element-plus/icons-vue'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useBreakpoint } from '@/composables/useBreakpoint'
+import { useMobileNav } from '@/composables/useMobileNav'
 import { navigateHome } from '@/utils/navigation'
 
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
+const nav = useMobileNav()
+const { isPhone, isTablet } = useBreakpoint()
+
+// 平板默认收成图标轨；手机档侧栏是抽屉，需要显示文字，所以强制展开。
+// 只在档位变化时重置，用户进来后的手动开合不会被覆盖。
+watch(
+  [isPhone, isTablet],
+  ([phone, tablet]) => {
+    collapsed.value = tablet && !phone
+  },
+  { immediate: true },
+)
 
 const navItems = [
   { path: '/admin/container-pool', label: '容器池', icon: Platform },
@@ -82,7 +117,10 @@ const toggleCollapse = () => {
 }
 
 const isActive = (path: string) => route.path === path
-const goAdminItem = (path: string) => router.replace(path)
+const goAdminItem = (path: string) => {
+  nav.close()
+  router.replace(path)
+}
 
 const goHome = () => {
   void navigateHome(router)
@@ -98,9 +136,42 @@ const logout = () => {
 .admin-layout {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
+  min-height: 100dvh;
   background: var(--cw-bg-page);
   transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 手机档顶栏：只在 ≤768 出现（cw-only-phone 负责桌面隐藏） */
+.admin-mobile-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 12px;
+  background: var(--cw-bg-card);
+  border-bottom: 1px solid var(--cw-border);
+}
+
+.mobile-bar-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cw-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-bar-exit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--cw-text-3);
+  cursor: pointer;
 }
 
 .admin-sidebar.collapsed ~ .admin-main {
@@ -295,6 +366,23 @@ const logout = () => {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--cw-text-3);
+}
+
+@media (max-width: 768px) {
+  /* 侧栏变成固定定位的抽屉后脱离网格流，主体只剩一列 */
+  .admin-layout,
+  .admin-layout.collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* 抽屉模式下开合图标没有意义（抽屉里始终显示文字） */
+  .collapse-toggle {
+    display: none;
+  }
+
+  .admin-main {
+    overflow: visible;
+  }
 }
 </style>
 

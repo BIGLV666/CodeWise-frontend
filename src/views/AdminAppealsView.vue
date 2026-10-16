@@ -241,7 +241,6 @@ async function openDetail(row: AppealItem) {
   try {
     detail.value = await adminModerationApi.getDetail(row.rootType, row.rootId)
   } catch (error) {
-    ElMessage.error(errorText(error, '详情加载失败'))
   } finally {
     detailLoading.value = false
   }
@@ -303,7 +302,6 @@ async function loadMore() {
     
     hasNext.value = Boolean(page.hasMore)
   } catch (error) {
-    ElMessage.error(errorText(error, '加载更多失败'))
   } finally {
     loadingMore.value = false
   }
@@ -360,7 +358,6 @@ async function submitHandle() {
         : item
     )
   } catch (error) {
-    ElMessage.error(errorText(error, '操作失败'))
   } finally {
     markPending(replyForm.value.appealId, false)
     submitting.value = false
@@ -372,7 +369,7 @@ onMounted(() => loadList(true))
 
 <style scoped>
 .appeal-page {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--cw-bg-page);
 }
 
@@ -388,6 +385,25 @@ onMounted(() => loadList(true))
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  /* 页头与列表行在窄屏纵排：右侧操作按钮不再挤压标题 */
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .appeal-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .appeal-row .row-actions {
+    align-self: flex-start;
+  }
 }
 
 .eyebrow {

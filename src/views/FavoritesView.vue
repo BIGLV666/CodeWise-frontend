@@ -1,12 +1,17 @@
 <template>
   <div class="favorites-view">
-    <AppNavBar active="home" show-search v-model:search="keyword" />
+    <AppNavBar active="home" show-search v-model:search="keyword">
+      <template #actions>
+        <MobileNavToggle purpose="sidebar" :open="nav.open.value" :icon="Collection" label="打开收藏夹导航" @toggle="nav.toggle" />
+      </template>
+    </AppNavBar>
 
     <div class="main-container">
       <FavoritesSidebar
         :favorites="favorites"
         :selected-favorite-id="selectedFavoriteId"
         :loading="favoritesLoading"
+        :mobile-open="nav.open.value"
         @go-home="goHome"
         @select-favorite="selectFavorite"
         @create-favorite="createFavorite"
@@ -65,23 +70,33 @@
         </div>
       </template>
     </el-dialog>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { Collection } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppNavBar from '@/components/layout/AppNavBar.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
 import FavoritesProblemList from '@/components/favorites/FavoritesProblemList.vue'
 import FavoritesProgressCard from '@/components/favorites/FavoritesProgressCard.vue'
 import FavoritesSidebar from '@/components/favorites/FavoritesSidebar.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
+import { errorText, isLocalFailure } from '@/api/request'
 import reviewApi from '@/api/reviewApi'
 import type { FavoriteCollection, FavoriteDifficulty, FavoriteProblem, FavoriteQuestionDto } from '@/types/FavoriteProblem'
 import { navigateTopLevel } from '@/utils/navigation'
+import { logWarn } from '@/utils/logger'
 
 const router = useRouter()
 const route = useRoute()
+// 手机档收藏夹侧栏转成抽屉
+const nav = useMobileNav()
 const keyword = ref('')
 const difficultyFilter = ref<FavoriteDifficulty | ''>('')
 const sortAsc = ref(true)
@@ -227,17 +242,17 @@ const loadFavorites = async () => {
     const nextFavoriteId = matchedRouteFavorite?.favoritesId || selectedFavoriteId.value || favorites.value[0].favoritesId
     await selectFavorite(nextFavoriteId, false)
   } catch (error) {
-    console.error('加载收藏夹失败:', error)
+    logWarn('加载收藏夹失败:', error)
     favorites.value = []
     problems.value = []
     selectedFavoriteId.value = ''
-    ElMessage.error('收藏夹加载失败，请稍后重试')
   } finally {
     favoritesLoading.value = false
   }
 }
 
 const selectFavorite = async (favoriteId: string, syncRoute = true) => {
+  nav.close()
   selectedFavoriteId.value = favoriteId
   if (syncRoute && route.query.favoriteId !== favoriteId) {
     router.replace({
@@ -250,7 +265,7 @@ const selectFavorite = async (favoriteId: string, syncRoute = true) => {
     const res: any = await reviewApi.getFavoriteQuestions(favoriteId)
     problems.value = unwrapData<any[]>(res, []).map(mapQuestion)
   } catch (error) {
-    console.error('加载收藏题目失败:', error)
+    logWarn('加载收藏题目失败:', error)
     problems.value = []
   } finally {
     questionsLoading.value = false
@@ -276,7 +291,7 @@ const createFavorite = async () => {
     await loadFavorites()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('创建收藏夹失败:', error)
+      logWarn('创建收藏夹失败:', error)
     }
   }
 }
@@ -312,6 +327,10 @@ const saveFavoriteInfo = async () => {
     ElMessage.success('收藏夹已更新')
     editDialogVisible.value = false
     await loadFavorites()
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('保存收藏夹信息失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '保存收藏夹信息失败，请稍后重试'))
   } finally {
     savingFavorite.value = false
   }
@@ -397,7 +416,9 @@ onMounted(() => {
 
 <style scoped>
 .favorites-view {
-  height: 100vh;
+  height: 100vh; height: 100dvh;
+  /* dvh：移动端地址栏收放不顶出底部内容 */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -433,7 +454,7 @@ onMounted(() => {
   gap: 10px;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1024px) {
   .content-panel {
     grid-template-columns: 1fr;
   }

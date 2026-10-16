@@ -1,6 +1,7 @@
 // src/stores/user.ts
 import { defineStore } from 'pinia'
 import type userDto  from '@/types/UserDto'
+import { logWarn } from '@/utils/logger'
 
 /** 管理员角色：0 为 root，2 为管理员。仅用于前端访问引导。 */
 export const ADMIN_ROLE_ID = 2
@@ -107,7 +108,7 @@ export const useUserStore = defineStore('user', {
           return Number(user.roleId)
         }
       } catch (error) {
-        console.error('获取用户角色失败:', error)
+        logWarn('获取用户角色失败:', error)
       }
       return undefined
     },

@@ -105,6 +105,7 @@ import adminFailureSubmitApi, {
   type FailureSubmitStatus,
 } from '@/api/adminFailureSubmitApi'
 import { errorText } from '@/api/request'
+import { logWarn } from '@/utils/logger'
 
 const statusOptions = [
   { value: FAILURE_SUBMIT_STATUS.PENDING, label: '待操作', description: '可重新投递', tone: 'pending', tagType: 'warning', icon: Clock },
@@ -165,7 +166,7 @@ async function retryRecord(record: FailureSubmit) {
     await loadRecords()
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      console.error('重试判题任务失败:', error)
+      logWarn('重试判题任务失败:', error)
     }
   } finally {
     setRetrying(record.failureSubmitId, false)
@@ -177,7 +178,7 @@ onMounted(loadRecords)
 </script>
 
 <style scoped>
-.failure-page { min-height: 100vh; color: var(--cw-text-1); background: var(--cw-bg-page); }
+.failure-page { min-height: 100vh; min-height: 100dvh; color: var(--cw-text-1); background: var(--cw-bg-page); }
 .page-content { width: min(1420px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 64px; }
 .page-heading { margin-bottom: 24px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .eyebrow { color: var(--cw-text-3); font-size: 11px; font-weight: 700; letter-spacing: .13em; }
@@ -201,6 +202,6 @@ h1 { margin: 7px 0 5px; color: var(--cw-text-1); font-size: 28px; letter-spacing
 .muted { color: #a8b0bc; }
 :deep(.el-table th.el-table__cell) { background: var(--cw-bg-page); color: var(--cw-text-3); font-size: 12px; font-weight: 600; }
 :deep(.el-table td.el-table__cell) { color: var(--cw-text-3); font-size: 12px; }
-@media (max-width: 900px) { .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .page-content { width: calc(100% - 28px); padding-top: 28px; } }
+@media (max-width: 1024px) { .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .page-content { width: calc(100% - 28px); padding-top: 28px; } }
 @media (max-width: 560px) { .page-heading { align-items: flex-start; flex-direction: column; } .summary-grid { grid-template-columns: 1fr; } }
 </style>

@@ -121,7 +121,6 @@ const loadDetail = async () => {
     const res = await adminModerationApi.getSolutionDetail(props.solutionId)
     detail.value = res
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || '加载详情失败')
   } finally {
     loading.value = false
   }
@@ -148,7 +147,6 @@ const handleReview = async (status: number, reason?: string) => {
     ElMessage.success(status === 1 ? '已通过审核' : '已拒绝')
     emit('reviewed')
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || '操作失败')
   } finally {
     processing.value = null
   }

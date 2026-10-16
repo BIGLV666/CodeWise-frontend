@@ -110,7 +110,6 @@ const loadComments = async (isLoadMore = false) => {
     hasNext.value = data.hasNext
     nextCursor.value = data.nextCursor == null ? null : String(data.nextCursor)
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || '加载失败')
   } finally {
     loading.value = false
     loadingMore.value = false
@@ -160,7 +159,6 @@ const handleUpdateStatus = async (commentId: string, status: number) => {
     }
   } catch (error: any) {
     if (error === 'cancel') return
-    ElMessage.error(error.response?.data?.message || '操作失败')
   } finally {
     processingItems.value.delete(commentId)
   }
@@ -290,5 +288,13 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   margin-top: 24px;
+}
+
+@media (max-width: 768px) {
+  /* 窄屏下 meta 与操作按钮换行，避免把卡片顶宽 */
+  .card-footer {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <aside class="left-panel">
+  <aside class="left-panel cw-offcanvas" :class="{ 'is-open': mobileOpen }">
     <section class="sidebar-card">
       <div class="sidebar-card-title">
         <el-icon><Menu /></el-icon>
@@ -58,6 +58,8 @@ defineProps<{
   favorites: FavoriteCollection[]
   selectedFavoriteId: string
   loading: boolean
+  /** 手机档由父级控制的抽屉开合状态；桌面端无效果（样式只在 ≤768 生效）。 */
+  mobileOpen?: boolean
 }>()
 
 defineEmits<{
@@ -163,8 +165,9 @@ const goPlan = () => router.push('/plan')
 }
 
 @media (max-width: 768px) {
+  /* 手机档不再是"隐藏掉没了"：由父级 FavoritesView 的汉堡按钮控制 .cw-offcanvas 抽屉 */
   .left-panel {
-    display: none;
+    border-right: 0;
   }
 }
 </style>

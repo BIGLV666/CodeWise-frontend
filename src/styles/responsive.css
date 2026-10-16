@@ -1,0 +1,197 @@
+/**
+ * 全站响应式基础样式。
+ *
+ * 这里只放三件事：
+ *  1. 移动端浏览器的基础修正（iOS 字号膨胀、媒体元素溢出、地址栏高度）；
+ *  2. 跨页面复用的工具类（横向滚动容器、触摸目标、按档位显隐）；
+ *  3. 渲染型 Markdown 内容在窄屏的自适应（表格/代码块/图片）。
+ *
+ * 断点只允许 560 / 768 / 1024 / 1280 四档，取值理由见 tokens.css。
+ * 注意：这里**不**加全局 overflow-x: hidden —— 那会把真实的溢出问题藏起来，
+ * 也会破坏 sticky 定位。溢出必须在各页面修根因，并由 E2E 逐路由断言。
+ */
+
+html {
+  /* iOS 横屏/窄屏下自动放大正文字号，会让布局跳动 */
+  -webkit-text-size-adjust: 100%;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --cw-page-gutter: 16px;
+  }
+}
+
+/* ---- 工具类 ---- */
+
+/* 横向滚动容器：宽表格/宽代码块专用，避免顶破页面 */
+.cw-scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 触屏可点目标下限 */
+.cw-tap {
+  min-width: var(--cw-tap-target);
+  min-height: var(--cw-tap-target);
+}
+
+/* 安全区（刘海屏/手势条）留白 */
+.cw-safe-bottom {
+  padding-bottom: var(--cw-safe-bottom);
+}
+
+/* 按档位显隐。
+ * 只在"隐藏"这一侧用 !important，手机侧不做任何声明——
+ * 否则被隐藏元素自己的 display（如 inline-flex）会被 revert 冲掉。 */
+@media (min-width: 769px) {
+  .cw-only-phone {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .cw-hide-phone {
+    display: none !important;
+  }
+}
+
+/* ---- 手机端抽屉（off-canvas） ----
+ * 全站统一做法：侧栏/导航在手机档被切成固定定位的抽屉，**复用同一份 DOM**，
+ * 不复制模板、不抽取子组件，所以各页面只要给侧栏加上 .cw-offcanvas、
+ * 用 .is-open 控制开合、再配一个 MobileNavToggle + MobileNavBackdrop 即可。
+ *
+ * 为什么不用 el-drawer：那一套必须把侧栏内容搬到抽屉里渲染，要么复制标记、
+ * 要么把每个页面的侧栏抽成子组件；而 position: fixed 在这里是安全的——
+ * 相关祖先容器（#app / 页面根 / main-container）都没有 transform / filter /
+ * contain，不会成为 fixed 的包含块（E2E 里有抽屉实际可见性的断言兜底）。
+ *
+ * 几何属性用 !important：页面的 scoped 样式带 [data-v-*] 属性选择器，
+ * 特异性高于单个类名，不加就会被页面自己的 width/position 顶掉。
+ */
+@media (max-width: 768px) {
+  .cw-offcanvas {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    z-index: 2200 !important;
+    width: min(320px, 86vw) !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    background: var(--cw-bg-card) !important;
+    box-shadow: var(--cw-shadow-pop);
+    padding: calc(14px + var(--cw-safe-top)) 16px calc(14px + var(--cw-safe-bottom)) !important;
+    transform: translateX(-102%);
+    transition: transform 0.24s ease, visibility 0.24s;
+    visibility: hidden;
+  }
+
+  .cw-offcanvas.is-open {
+    transform: translateX(0) !important;
+    visibility: visible;
+  }
+
+  .cw-offcanvas-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2199;
+    background: rgba(15, 23, 42, 0.45);
+  }
+
+  /* 抽屉内部的通用排版：标题行 + 关闭按钮 + 竖排导航项。
+   * 放在全局，页面只要给导航元素挂上 .cw-offcanvas、把标题/导航项用
+   * .nav-drawer-head / .nav-item 这类既有类名写出来即可，不必各写一份。 */
+  .nav-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--cw-border);
+    color: var(--cw-text-3);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .nav-drawer-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--cw-text-2);
+    cursor: pointer;
+  }
+
+  /* 抽屉作为导航容器时改为竖排 */
+  .cw-offcanvas.nav-menu {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  /* 抽屉里的导航项铺满整行、左对齐（触屏友好）。
+   * 用 !important 压过页面 scoped 样式的横向内边距与居中。 */
+  .cw-offcanvas .nav-item {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    padding: 12px !important;
+    font-size: 15px !important;
+    text-align: left !important;
+  }
+}
+
+/* ---- 渲染型 Markdown 窄屏自适应 ----
+ * 容器类名全站统一为 .markdown-body（见 utils/markdown.ts 的调用方），
+ * 以及少数页面自己的 content-text / detail-content / advice-markdown。
+ * 只在手机档生效，桌面端渲染结果完全不变。
+ */
+@media (max-width: 768px) {
+  .markdown-body table,
+  .content-text table,
+  .detail-content table,
+  .advice-markdown table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .markdown-body pre,
+  .content-text pre,
+  .detail-content pre,
+  .advice-markdown pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .markdown-body img,
+  .content-text img,
+  .detail-content img,
+  .advice-markdown img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* 长 URL / 长 token 不撑破卡片 */
+  .markdown-body,
+  .content-text,
+  .detail-content,
+  .advice-markdown {
+    overflow-wrap: anywhere;
+  }
+}

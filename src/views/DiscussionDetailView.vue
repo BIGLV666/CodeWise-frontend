@@ -2,10 +2,17 @@
   <div class="detail-page">
     <header class="navbar">
       <div class="nav-left">
+        <MobileNavToggle :open="nav.open.value" label="打开主导航" @toggle="nav.toggle" />
         <button class="logo" type="button" @click="navigateTopLevel(router, '/home')">
           <BrandLogo :size="28" />
         </button>
-        <nav>
+        <nav class="cw-offcanvas" :class="{ 'is-open': nav.open.value }" aria-label="主导航">
+          <div class="nav-drawer-head cw-only-phone">
+            <span>导航</span>
+            <button class="nav-drawer-close cw-tap" type="button" aria-label="收起导航" @click="nav.close">
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
           <button type="button" @click="navigateTopLevel(router, '/home')">题库</button>
           <button type="button">竞赛</button>
           <button class="active" type="button" @click="navigateTopLevel(router, '/discuss')">讨论</button>
@@ -163,19 +170,25 @@
       </aside>
     </main>
 
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChatDotRound, Delete, Edit, Loading, Pointer } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChatDotRound, Close, Delete, Edit, Loading, Pointer } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import communityApi from '@/api/communityApi'
+import { errorText, isLocalFailure } from '@/api/request'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import { renderMarkdown } from '@/utils/markdown'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
 import { navigateTopLevel } from '@/utils/navigation'
 import type UserDto from '@/types/UserDto'
+import { logWarn } from '@/utils/logger'
 
 interface CommunityPost {
   postId: string
@@ -207,6 +220,8 @@ interface CommunityComment {
 
 const route = useRoute()
 const router = useRouter()
+// 手机档主导航转成抽屉
+const nav = useMobileNav()
 const post = ref<CommunityPost | null>(null)
 const comments = ref<CommunityComment[]>([])
 const loading = ref(true)
@@ -296,7 +311,7 @@ const loadComments = async (postId: string) => {
     const data = unwrapData<any>(res, {})
     comments.value = Array.isArray(data.records) ? data.records.map(mapComment) : []
   } catch (error) {
-    console.warn('评论加载失败:', error)
+    logWarn('评论加载失败:', error)
   } finally {
     commentsLoading.value = false
   }
@@ -312,7 +327,7 @@ const loadPost = async () => {
       await revealTargetComment()
     }
   } catch (error) {
-    console.error('帖子详情加载失败:', error)
+    logWarn('帖子详情加载失败:', error)
     post.value = null
   } finally {
     loading.value = false
@@ -325,6 +340,10 @@ const togglePostLike = async () => {
   liking.value = true
   try {
     post.value.isLike = Boolean(unwrapData<boolean>(await communityApi.togglePostLike(post.value.postId), false))
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('点赞失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '点赞失败，请稍后重试'))
   } finally {
     liking.value = false
   }
@@ -333,8 +352,13 @@ const togglePostLike = async () => {
 
 const toggleCommentLike = async (comment: CommunityComment) => {
   const previous = Boolean(comment.isLike)
-  comment.isLike = Boolean(unwrapData<boolean>(await communityApi.toggleCommentLike(comment.commentId), false))
-  if (comment.isLike !== previous) comment.likeCount = Math.max(0, comment.likeCount + (comment.isLike ? 1 : -1))
+  try {
+    comment.isLike = Boolean(unwrapData<boolean>(await communityApi.toggleCommentLike(comment.commentId), false))
+    if (comment.isLike !== previous) comment.likeCount = Math.max(0, comment.likeCount + (comment.isLike ? 1 : -1))
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；这里只记录，不再重复弹
+    logWarn('点赞评论失败:', error)
+  }
 }
 
 const isCommentOwner = (comment: CommunityComment) => Boolean(comment.userId && currentUserId.value && String(comment.userId) === currentUserId.value)
@@ -358,7 +382,7 @@ const deletePost = async () => {
     ElMessage.success('帖子已删除')
     await router.replace('/discuss')
   } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') console.error('删除帖子失败:', error)
+    if (error !== 'cancel' && error !== 'close') logWarn('删除帖子失败:', error)
   } finally {
     deletingPost.value = false
   }
@@ -378,7 +402,7 @@ const deleteComment = async (comment: CommunityComment) => {
     await loadComments(post.value.postId)
     ElMessage.success('评论已删除')
   } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') console.error('删除评论失败:', error)
+    if (error !== 'cancel' && error !== 'close') logWarn('删除评论失败:', error)
   }
 }
 
@@ -398,7 +422,9 @@ const createComment = async () => {
     await loadComments(post.value.postId)
     ElMessage.success('评论已发表')
   } catch (error) {
-    console.error('发表评论失败:', error)
+    logWarn('发表评论失败:', error)
+    // 拿不到 requestId 属本地失败，不经过拦截器，必须自己提示
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '发表评论失败，请稍后重试'))
   } finally {
     commenting.value = false
   }
@@ -446,7 +472,8 @@ const submitReply = async () => {
     await loadComments(post.value.postId)
     ElMessage.success('回复已发表')
   } catch (error) {
-    console.error('发表回复失败:', error)
+    logWarn('发表回复失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '发表回复失败，请稍后重试'))
   } finally {
     replying.value = false
   }
@@ -471,7 +498,7 @@ watch(() => route.params.postId, () => {
 </script>
 
 <style scoped>
-.detail-page { min-height: 100vh; background: var(--cw-bg-page); color: var(--cw-text-1); font-family: var(--cw-font-sans); }
+.detail-page { min-height: 100vh; min-height: 100dvh; min-height: 100dvh; background: var(--cw-bg-page); color: var(--cw-text-1); font-family: var(--cw-font-sans); }
 .navbar { position: sticky; top: 0; z-index: 20; height: 58px; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--cw-border); }
 .nav-left, .nav-left nav, .logo { display: flex; align-items: center; }
 .nav-left { gap: 34px; }.nav-left nav { height: 58px; gap: 26px; }
@@ -495,6 +522,20 @@ h1 { margin: 25px 0 12px; color: #1f2328; font-size: 28px; line-height: 1.35; le
 .comments-panel { margin-top: 18px; padding: 24px 28px; }.comments-panel h2, .side-panel h2 { margin: 0; font-size: 16px; letter-spacing: 0; }.comments-panel h2 span { color: var(--cw-text-3); font-size: 13px; font-weight: 400; }.comment-editor { display: flex; align-items: flex-start; gap: 11px; margin-top: 18px; padding-bottom: 22px; border-bottom: 1px solid var(--cw-bg-subtle); }.editor-main { flex: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 .comment-list { display: flex; flex-direction: column; }.comment-thread { border-bottom: 1px solid var(--cw-bg-subtle); transition: background-color .2s ease; }.comment-thread.targeted { margin: 0 -12px; padding: 0 12px; border-radius: 6px; background: #fff8eb; }.comment-thread:last-child { border-bottom: 0; }.comment-item { display: flex; gap: 11px; padding: 20px 0; }.comment-main { flex: 1; min-width: 0; }.comment-meta { display: flex; align-items: baseline; gap: 10px; }.comment-meta strong { font-size: 14px; }.comment-meta span { color: var(--cw-text-3); font-size: 12px; }.comment-item p, .reply-item p { margin: 10px 0 7px; line-height: 1.7; white-space: pre-wrap; }.comment-actions { display: flex; align-items: center; gap: 14px; }.like-action.small { min-height: 25px; font-size: 13px; }.reply-button, .delete-comment-button { padding: 3px 2px; color: #818690; font-size: 13px; }.reply-button:hover { color: var(--cw-brand-dark); }.delete-comment-button:hover { color: var(--cw-danger); }.reply-toggle { margin-top: 10px; padding: 5px 2px; display: inline-flex; align-items: center; gap: 5px; color: var(--cw-text-3); font-size: 13px; }.reply-toggle:hover { color: var(--cw-brand-dark); }.reply-list { margin-top: 9px; display: flex; flex-direction: column; gap: 12px; }.reply-item { display: flex; gap: 10px; padding: 16px; border-radius: 8px; background: #f2f3f4; }.reply-main { flex: 1; min-width: 0; }.reply-target { color: #1683e8; }.reply-editor { margin-top: 12px; padding: 12px; border-radius: 8px; background: #f2f3f4; }.reply-editor > div { margin-top: 8px; display: flex; justify-content: flex-end; gap: 6px; }.comments-state, .loading-panel { min-height: 120px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--cw-text-3); }
 .side-column { position: sticky; top: 82px; display: flex; flex-direction: column; gap: 16px; }.side-panel { padding: 18px; }.side-panel h2 { padding-bottom: 12px; border-bottom: 1px solid var(--cw-bg-subtle); }.side-author { display: flex; align-items: center; gap: 11px; padding-top: 16px; }.side-author strong { font-size: 14px; }.author-bio { margin: 14px 0; color: var(--cw-text-3); font-size: 13px; line-height: 1.6; }.author-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }.author-stats div { padding: 9px 4px; border-radius: 6px; background: var(--cw-bg-page); display: flex; flex-direction: column; align-items: center; gap: 3px; }.author-stats span { color: var(--cw-text-3); font-size: 11px; }.author-stats strong { font-size: 14px; }.topic-link { width: 100%; padding: 12px 2px; border-bottom: 1px solid #f0f1f3; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #555b65; text-align: left; }.topic-link > span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }.topic-link small { color: var(--cw-brand-dark); }.topic-link:last-child { border-bottom: 0; }.topic-link:hover { color: var(--cw-brand-dark); }
-@media (max-width: 900px) { .page-shell { grid-template-columns: 1fr; }.side-column { position: static; }.nav-left nav { display: none; } }
-@media (max-width: 640px) { .navbar { padding: 0 16px; }.page-shell { width: calc(100% - 24px); padding-top: 14px; }.thread-card { padding: 20px 18px 0; }.post-heading-row { align-items: center; }.owner-actions :deep(.el-button span) { display: none; }.comments-panel { padding: 20px 18px; }h1 { font-size: 23px; }.comment-editor > .el-avatar { display: none; } }
+@media (max-width: 1024px) { .page-shell { grid-template-columns: 1fr; }.side-column { position: static; } }
+@media (max-width: 768px) {
+  /* 主导航转成 .cw-offcanvas 抽屉，而不是窄屏直接隐藏 */
+  .navbar { padding: 0 12px; gap: 8px; }
+  .nav-left { gap: 10px; flex: 1 1 auto; min-width: 0; }
+  .nav-left .cw-offcanvas { height: auto; flex-direction: column; align-items: stretch; gap: 2px; }
+  .nav-left .cw-offcanvas button { height: auto; width: 100%; padding: 12px; font-size: 15px; text-align: left; }
+  .nav-left .cw-offcanvas button.active { border-bottom: 0; border-left: 3px solid var(--cw-brand); background: var(--cw-brand-soft); }
+  .page-shell { width: calc(100% - 24px); padding-top: 14px; }
+  .thread-card { padding: 20px 18px 0; }
+  .post-heading-row { align-items: center; }
+  .owner-actions :deep(.el-button span) { display: none; }
+  .comments-panel { padding: 20px 18px; }
+  h1 { font-size: 23px; }
+  .comment-editor > .el-avatar { display: none; }
+}
 </style>

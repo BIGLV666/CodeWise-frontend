@@ -100,3 +100,56 @@ Spring 配置中的 `${ENV_NAME}` 不会被当作公式。公式分隔符必须�
 - Mermaid 图表渲染尚未加入，需要单独处理异步 SVG 渲染和安全隔离。
 - WebSocket 重连和订阅逻辑保持现状。
 - 构建仍会提示部分大分包和第三方依赖注释警告，不影响当前构建成功，后续可单独进行 Monaco Editor 和大型依赖拆包。
+
+---
+
+## 6. 移动端/平板适配与错误处理重构（2026-10-16）
+
+### 6.1 断点只有四档
+
+媒体查询只允许 `560 / 768 / 1024 / 1280` 四个值（`src/styles/tokens.css` 有说明，`tests/responsive-contract.test.mjs` 锁死白名单）：
+
+| 档位 | 语义 |
+| --- | --- |
+| 560 | 窄手机 |
+| 768 | 手机：顶部导航收起、页面级侧栏转抽屉、弹窗自适应 |
+| 1024 | 平板：多栏退单栏、后台侧栏收窄成图标轨 |
+| 1280 | 宽屏收窄：大桌面三栏退两栏，不属于移动档 |
+
+历史上有 17 种散落断点（720/760/820/900/980/1000/1050/1120/1180…），已按「**只让折叠提前、绝不让折叠延后**」的规则归一，避免中间宽度露出被挤压的布局。JS 侧的档位判断统一走 `src/composables/useBreakpoint.ts`，不要再手写 `window.innerWidth`；需要精确像素（例如可拖拽悬浮球）时用 `useViewportSize()`，它全局只注册一个 resize 监听。
+
+### 6.2 手机端抽屉复用同一份 DOM
+
+窄屏不再「把侧栏 `display: none` 掉、于是入口彻底消失」（历史上首页筛选、收藏夹切换、计划侧栏、笔记文件夹、Agent 会话栏、复习/个人主页/讨论的导航都这样丢了）。现在的做法是 `src/styles/responsive.css` 里的 `.cw-offcanvas`：
+
+```html
+<aside class="left-panel cw-offcanvas" :class="{ 'is-open': nav.open.value }">…</aside>
+<MobileNavToggle purpose="sidebar" :open="nav.open.value" @toggle="nav.toggle" />
+<MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
+```
+
+开关状态用 `useMobileNav()`（回到桌面档或路由变化时自动收起）。`.cw-offcanvas` 的样式只在 ≤768 生效，桌面端完全无感。带上 `purpose` 是为了区分「页面侧栏抽屉」和「站点导航抽屉」——同一页面上可能两个都有。
+
+### 6.3 错误处理：全局拦截器为主
+
+**约定**：非 silent 的请求失败一律由 `src/api/request.ts` 的响应拦截器提示一次（同文案有 3s / 10s 去重窗口）。因此：
+
+- 页面 catch **不要**再弹 `ElMessage`，只做状态回滚、内联错误态、清空数据；
+- 已被全局提示过的失败，日志走 `logWarn`（生产静默）；
+- 页面自己 `throw` 的分支（例如拿不到 requestId）不经过拦截器，用 `isLocalFailure(error)` 判断后**必须**自己提示，否则就是被静默吞掉；
+- 走独立 axios 实例或裸 fetch 的调用方（`api/agentApi.ts`、`aiApi.askStream`）自带提示，保持现状；
+- 后台轮询/自动上报标 `silent`（`AdminContainerPoolView` 的 8s 刷新、`aiApi.reportRealtimeAnalysis`），避免后台抖动刷屏。
+
+日志统一走 `src/utils/logger.ts`：`logDebug/logWarn` 仅开发环境输出，`reportError` 记录进环形缓冲（开发期用 `window.__cwErrors()` 查看）。`src/` 里不允许出现裸 `console.*`，由静态守卫测试拦截。
+
+组件渲染异常、未捕获 promise、`window.onerror` 由 `src/utils/globalErrorHandler.ts` 统一兜底：记录 + 去重后给用户一条通用提示，不再各自 `console.error`。
+
+### 6.4 测试
+
+```bash
+npm test              # 单测 + 静态守卫（无需浏览器）
+npm run test:e2e      # 构建产物 + 桩服务器 + 无头 Chrome 的响应式/错误处理/压测
+npm run test:all      # 类型检查 + 上面两个
+```
+
+E2E 不依赖后端：`tests/e2e/stub-server.mjs` 同时伺服 `dist/` 与 `/api/**`、`/agentapi/**` 的 fixture（`tests/e2e/fixtures.mjs`），并支持 500 / 超时 / 401 故障注入；浏览器用宿主 `google-chrome` + Node 内置 WebSocket 直连 CDP，不新增依赖、不下载浏览器。覆盖范围：26 个路由 × 四档视口无横向溢出、手机档抽屉可开合与主内容单栏化、一次失败只弹一条提示、控制台无应用级 error、视口反复切换与持续失败下的稳定性。

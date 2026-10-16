@@ -2,10 +2,17 @@
   <div class="discussion-view">
     <header class="navbar">
       <div class="navbar-left">
+        <MobileNavToggle :open="nav.open.value" label="打开主导航" @toggle="nav.toggle" />
         <button class="logo" type="button" @click="goHome">
           <BrandLogo :size="28" />
         </button>
-        <nav class="nav-menu">
+        <nav class="nav-menu cw-offcanvas" :class="{ 'is-open': nav.open.value }" aria-label="主导航">
+          <div class="nav-drawer-head cw-only-phone">
+            <span>导航</span>
+            <button class="nav-drawer-close cw-tap" type="button" aria-label="收起导航" @click="nav.close">
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
           <button class="nav-item" type="button" @click="goHome">题库</button>
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item active" type="button">讨论</button>
@@ -190,19 +197,24 @@
         </section>
       </aside>
     </main>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { ChatDotRound, EditPen, Loading, Pointer, Search, View } from '@element-plus/icons-vue'
+import { ChatDotRound, Close, EditPen, Loading, Pointer, Search, View } from '@element-plus/icons-vue'
 import communityApi from '@/api/communityApi'
 import questionApi from '@/api/questionApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import InboxButton from '@/components/notification/InboxButton.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
 import { navigateTopLevel } from '@/utils/navigation'
+import { logWarn } from '@/utils/logger'
 
 interface CommunityPost {
   postId: string
@@ -230,6 +242,8 @@ interface QuestionResult {
 }
 
 const router = useRouter()
+// 手机档主导航转成抽屉；搜索框留在顶栏（右侧簇只有收件箱+头像，放得下）
+const nav = useMobileNav()
 const keyword = ref('')
 const selectedTag = ref('')
 const activeTab = ref('recommended')
@@ -362,14 +376,12 @@ const loadPosts = async (refresh = true) => {
     lastId.value = data.nextCursor !== undefined && data.nextCursor !== null ? String(data.nextCursor) : null
     hasMore.value = Boolean(data.hasNext)
   } catch (error) {
-    console.warn('讨论列表加载失败', error)
+    // 失败提示由 request 拦截器统一弹出，这里只做状态兜底：
+    // 刷新失败清空列表交由模板空态展示；加载更多失败保留已有数据
+    logWarn('讨论列表加载失败', error)
     if (refresh) {
-      // 刷新失败清空列表交由模板空态展示；加载更多失败保留已有数据
       posts.value = []
       hasMore.value = false
-      ElMessage.error('讨论加载失败，请稍后重试')
-    } else {
-      ElMessage.error('加载更多失败，请稍后重试')
     }
   } finally {
     loading.value = false
@@ -383,7 +395,7 @@ const loadHotPosts = async () => {
     const data = unwrapData<any[]>(res, [])
     hotPosts.value = Array.isArray(data) ? data.map(mapPost).slice(0, 10) : []
   } catch (error) {
-    console.warn('加载热榜帖子失败:', error)
+    logWarn('加载热榜帖子失败:', error)
     hotPosts.value = []
   }
 }
@@ -402,7 +414,7 @@ const searchPosts = async () => {
     const data = unwrapData<any[]>(res, [])
     searchPostResults.value = Array.isArray(data) ? data.map(mapPost) : []
   } catch (error) {
-    console.warn('搜索帖子失败:', error)
+    logWarn('搜索帖子失败:', error)
     searchPostResults.value = []
   } finally {
     postSearchLoading.value = false
@@ -421,7 +433,7 @@ const loadPostsByTag = async (tag: string) => {
     const data = unwrapData<any[]>(res, [])
     searchPostResults.value = Array.isArray(data) ? data.map(mapPost) : []
   } catch (error) {
-    console.warn('按标签搜索帖子失败:', error)
+    logWarn('按标签搜索帖子失败:', error)
     searchPostResults.value = []
   } finally {
     postSearchLoading.value = false
@@ -442,7 +454,7 @@ const searchQuestions = async () => {
     const data = unwrapData<any>(res, {})
     questionResults.value = Array.isArray(data.records) ? data.records.map(mapQuestion) : []
   } catch (error) {
-    console.warn('题目搜索失败:', error)
+    logWarn('题目搜索失败:', error)
     questionResults.value = []
   } finally {
     questionSearchLoading.value = false
@@ -514,7 +526,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .discussion-view {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
+  min-height: 100dvh;
   background: var(--cw-bg-page);
   color: var(--cw-text-1);
   font-family: var(--cw-font-sans);
@@ -966,7 +979,7 @@ onBeforeUnmount(() => {
   color: var(--cw-brand);
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
   .discussion-shell {
     grid-template-columns: 1fr;
   }
@@ -974,16 +987,37 @@ onBeforeUnmount(() => {
   .side-panel {
     position: static;
   }
+
+  /* 搜索框可收缩，避免 769–1024 区间顶破顶栏 */
+  .search-input {
+    width: 180px;
+    flex: 0 1 180px;
+    min-width: 96px;
+  }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
+  /* 主导航转成 .cw-offcanvas 抽屉；搜索框保留（手机端搜索是主功能） */
   .navbar {
-    padding: 0 16px;
+    padding: 0 12px;
+    gap: 8px;
   }
 
-  .nav-menu,
-  .navbar-right .search-input {
-    display: none;
+  .navbar-left {
+    gap: 10px;
+    flex: 0 0 auto;
+  }
+
+  .navbar-right {
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .search-input {
+    width: auto;
+    flex: 1 1 90px;
+    min-width: 0;
   }
 
   .discussion-shell {

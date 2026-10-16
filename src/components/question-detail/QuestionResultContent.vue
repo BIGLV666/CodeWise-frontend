@@ -416,4 +416,12 @@ const formatMemory = (value?: number | null) => {
   justify-content: center;
   background: #fff;
 }
+
+@media (max-width: 768px) {
+  /* 触屏可点目标放大（28px 在手机上点不准） */
+  .testcase-dot {
+    width: var(--cw-tap-target);
+    height: var(--cw-tap-target);
+  }
+}
 </style>

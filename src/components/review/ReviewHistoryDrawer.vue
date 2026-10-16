@@ -141,6 +141,7 @@ import { ArrowLeft, ArrowRight, Calendar, Clock, Close, StarFilled } from '@elem
 import { ElMessage } from 'element-plus'
 import reviewApi, { type ReviewPlan, type ReviewRecord, type ReviewRecordDetail } from '@/api/reviewApi'
 import questionApi from '@/api/questionApi'
+import { logWarn } from '@/utils/logger'
 
 const props = defineProps<{ visible: boolean }>()
 defineEmits<{ (event: 'update:visible', value: boolean): void }>()
@@ -196,7 +197,7 @@ async function loadDrawerData() {
     plans.value = unwrapList<any>(plansResponse).map(normalizePlan)
     records.value = unwrapList<any>(recordsResponse).map((item) => ({ ...item, reviewRecordId: item.reviewRecordId == null ? undefined : String(item.reviewRecordId), userId: item.userId == null ? undefined : String(item.userId) }))
   } catch (error) {
-    console.error('加载全部复习内容失败:', error)
+    logWarn('加载全部复习内容失败:', error)
   } finally {
     plansLoading.value = false
     recordsLoading.value = false
@@ -214,7 +215,7 @@ async function openPlanDetail(plan: ReviewPlan) {
     const response: any = await questionApi.getQuestionById(Number(plan.questionId))
     selectedQuestion.value = response?.data ?? response
   } catch (error) {
-    console.error('加载复习题目详情失败:', error)
+    logWarn('加载复习题目详情失败:', error)
   } finally {
     questionLoading.value = false
   }
@@ -231,7 +232,7 @@ async function openRecordDetail(record: ReviewRecord) {
     selectedRecord.value = response?.data ?? response
   } catch (error) {
     selectedRecord.value = null
-    console.error('加载复习记录详情失败:', error)
+    logWarn('加载复习记录详情失败:', error)
   } finally {
     recordDetailLoading.value = false
   }
@@ -261,7 +262,7 @@ async function savePlan() {
     })
     ElMessage.success('复习计划已更新')
   } catch (error) {
-    console.error('更新复习计划失败:', error)
+    logWarn('更新复习计划失败:', error)
   } finally {
     saving.value = false
   }

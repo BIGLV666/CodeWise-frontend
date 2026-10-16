@@ -12,9 +12,31 @@
     />
 
     <!-- ====== 主内容 ====== -->
-    <div class="main-container" ref="containerRef">
+    <div class="main-container" ref="containerRef" :class="{ 'mobile-mode': isPhone }">
+      <!-- 手机档：题目 / 代码 / 结果 三档切换。
+           双栏在 375px 下会把编辑器压到 150px 左右，所以窄屏改成同一区域切换显示；
+           各档用 v-show 保留 DOM，Monaco 不会被反复销毁重建。 -->
+      <div v-if="isPhone" class="mobile-pane-tabs" role="tablist">
+        <button
+          v-for="pane in MOBILE_PANES"
+          :key="pane.key"
+          type="button"
+          role="tab"
+          class="mobile-pane-tab"
+          :class="{ active: mobilePane === pane.key }"
+          :aria-selected="mobilePane === pane.key"
+          @click="setMobilePane(pane.key)"
+        >
+          {{ pane.label }}
+        </button>
+      </div>
+
       <!-- ====== 左面板：题目 ====== -->
-      <div class="left-panel" :style="{ width: leftWidth + 'px' }">
+      <div
+        v-show="showProblemPane"
+        class="left-panel"
+        :style="isPhone ? undefined : { width: leftWidth + 'px' }"
+      >
         <QuestionInfoTabs
           v-model:active-tab="activeTab"
           :question-data="questionData"
@@ -50,15 +72,15 @@
         />
       </div>
 
-      <!-- ====== 拖拽手柄 ====== -->
-      <div class="resize-handle" @mousedown="startResize">
+      <!-- ====== 拖拽手柄（触屏无 hover/拖动语义，手机档隐藏） ====== -->
+      <div v-if="!isPhone" class="resize-handle" @mousedown="startResize">
         <div class="handle-line"></div>
       </div>
 
       <!-- ====== 右面板：编辑器 + 结果 ====== -->
       <div class="right-panel">
         <!-- 编辑器工具栏 -->
-        <div class="editor-toolbar">
+        <div v-show="showEditorPane" class="editor-toolbar">
           <el-select v-model="selectedLanguage" placeholder="选择语言" size="small" style="width:140px;" @change="onLanguageChange" link type="primary">
             <el-option label="C++" value="cpp" :disabled="isFunctionQuestion" />
             <el-option label="C" value="c" :disabled="isFunctionQuestion" />
@@ -94,11 +116,16 @@
         </div>
 
         <!-- Monaco Editor -->
-        <div ref="editorContainer" class="editor-container"></div>
+        <div v-show="showEditorPane" ref="editorContainer" class="editor-container"></div>
 
         <!-- ====== 结果区（右侧详情） ====== -->
-        <div class="result-wrapper" ref="resultWrapperRef" :style="{ height: resultHeight + 'px' }">
-          <div class="result-resize-handle" @mousedown="startResizeResult">
+        <div
+          v-show="showResultPane"
+          class="result-wrapper"
+          ref="resultWrapperRef"
+          :style="isPhone ? undefined : { height: resultHeight + 'px' }"
+        >
+          <div v-if="!isPhone" class="result-resize-handle" @mousedown="startResizeResult">
             <div class="result-handle-line"></div>
           </div>
           <QuestionResultContent
@@ -179,6 +206,7 @@ import 'monaco-editor/esm/vs/basic-languages/python/python.contribution.js'
 import { marked } from 'marked'
 import websocketService from '@/utils/WebSocket'
 import aiApi, { type RealtimeAnalysisChange } from '@/api/aiApi'
+import { errorText, isLocalFailure } from '@/api/request'
 import questionApi from '@/api/questionApi'
 import userApi from '@/api/userApi'
 import reviewApi from '@/api/reviewApi'
@@ -191,6 +219,9 @@ import type { FavoriteCollection } from '@/types/FavoriteProblem'
 import type { DebugTestCase, JudgeResultDTO, JudgeReturnRecordDto, ParsedTestData } from '@/types/QuestionDetail'
 import { useUserStore } from '@/stores/User'
 import { navigateBack } from '@/utils/navigation'
+import { useBreakpoint, breakpointQuery } from '@/composables/useBreakpoint'
+import { useMediaQuery } from '@/composables/useMediaQuery'
+import { logWarn, logDebug } from '@/utils/logger'
 
 const AI_PANEL_WIDTH = 390
 const AI_PANEL_GAP = 8
@@ -261,7 +292,7 @@ const clearLegacySavedCodes = () => {
     LEGACY_CODE_LANGUAGES.forEach((language) => {
       localStorage.removeItem(`${SAVE_KEY_PREFIX}${language}`)
     })
-  } catch (e) { console.warn('清理旧代码缓存失败:', e) }
+  } catch (e) { logWarn('清理旧代码缓存失败:', e) }
 }
 
 clearLegacySavedCodes()
@@ -281,7 +312,7 @@ const saveCode = (language: string, code: string) => {
   }
   try {
     localStorage.setItem(key, JSON.stringify(data))
-  } catch (e) { console.warn('保存代码失败:', e) }
+  } catch (e) { logWarn('保存代码失败:', e) }
 }
 
 const loadCode = (language: string): string | null => {
@@ -334,6 +365,8 @@ const handleSubmit = async () => {
   if (!questionId) { ElMessage.error('缺少题目 ID'); return }
 
   submitting.value = true
+  // 手机档提交后直接切到结果页签，否则用户看不到判题进度
+  if (isPhone.value) setMobilePane('result')
   judgeResult.value = {
     submissionId: 0,
     language: selectedLanguage.value,
@@ -358,14 +391,9 @@ const handleSubmit = async () => {
       const interval = setInterval(() => {
         if (judgeProgress.value < 90) { judgeProgress.value += 10 } else { clearInterval(interval) }
       }, 300)
-    } else {
-      ElMessage.error(response.message || '提交失败')
-      submitting.value = false
-      judgeResult.value = null
     }
   } catch (error) {
-    console.error('提交失败:', error)
-    ElMessage.error('提交失败，请稍后重试')
+    logWarn('提交失败:', error)
     submitting.value = false
     judgeResult.value = null
   }
@@ -442,7 +470,7 @@ const initializeRealtimeAnalysis = async () => {
     await aiApi.reportRealtimeAnalysis(payload)
   } catch (error) {
     realtimeAnalysisInitializedQuestionId = ''
-    console.warn('初始化实时分析失败:', error)
+    logWarn('初始化实时分析失败:', error)
   }
 }
 
@@ -483,11 +511,11 @@ const flushRealtimeAnalysis = async () => {
       // 服务端持续不可用：停止重试并丢弃本批，用户下次编辑会重新累计。
       pendingRealtimeChanges.length = 0
       realtimeAnalysisRetryCount = 0
-      console.warn('实时分析上报连续失败，已暂停上报')
+      logWarn('实时分析上报连续失败，已暂停上报')
       return
     }
     pendingRealtimeChanges.unshift(...batch)
-    console.warn(`上报实时分析增量失败（第 ${realtimeAnalysisRetryCount} 次），稍后重试`, error)
+    logWarn(`上报实时分析增量失败（第 ${realtimeAnalysisRetryCount} 次），稍后重试`, error)
     scheduleRealtimeAnalysis()
   } finally {
     realtimeAnalysisSending = false
@@ -513,8 +541,33 @@ const containerRef = ref<HTMLElement | null>(null)
 const leftWidth = ref(0)
 const isResizing = ref(false)
 
+// 手机档：题目 / 代码 / 结果 三档切换（桌面端三档全部常显，此状态无效果）
+const { isPhone } = useBreakpoint()
+const isWide = useMediaQuery(breakpointQuery('wide'))
+const MOBILE_PANES = [
+  { key: 'problem', label: '题目' },
+  { key: 'code', label: '代码' },
+  { key: 'result', label: '结果' },
+] as const
+const mobilePane = ref<(typeof MOBILE_PANES)[number]['key']>('problem')
+
+const showProblemPane = computed(() => !isPhone.value || mobilePane.value === 'problem')
+const showEditorPane = computed(() => !isPhone.value || mobilePane.value === 'code')
+const showResultPane = computed(() => !isPhone.value || mobilePane.value === 'result')
+
+/**
+ * 切换手机档页签。
+ * Monaco 在 display:none 的容器里量不到尺寸，切回来必须重新 layout，
+ * 否则编辑器会保持 0 高度或被裁切。
+ */
+const setMobilePane = (pane: (typeof MOBILE_PANES)[number]['key']) => {
+  mobilePane.value = pane
+  if (pane === 'code') nextTick(() => editor?.layout())
+}
+
+// AI 面板只在超宽屏占布局空间；窄屏它是浮层，不参与宽度计算
 const getAiPanelSpace = () =>
-  aiPanelVisible.value && window.innerWidth > 1280 ? AI_PANEL_WIDTH + AI_PANEL_GAP : 0
+  aiPanelVisible.value && isWide.value ? AI_PANEL_WIDTH + AI_PANEL_GAP : 0
 
 const calculateWidths = () => {
   if (!containerRef.value) return
@@ -587,7 +640,7 @@ const loadSubmissions = async () => {
       submissionsLoaded.value = true
     }
   } catch (error) {
-    console.error('加载提交记录失败:', error)
+    logWarn('加载提交记录失败:', error)
   } finally {
     submissionsLoading.value = false
   }
@@ -655,12 +708,9 @@ const loadQuestion = async () => {
       if (savedCode) {
         setTimeout(() => { if (editor) editor.setValue(savedCode) }, 500)
       }
-    } else {
-      ElMessage.error(response.message || '加载失败')
     }
   } catch (error: any) {
-    console.error('加载失败:', error)
-    ElMessage.error('加载失败，请稍后重试')
+    logWarn('加载失败:', error)
   } finally { loading.value = false }
 }
 const enforceTwoSpaceIndentation = () => {
@@ -726,7 +776,7 @@ const getDefaultCode = (lang: string): string => {
     python: `# 请在这里编写代码\nprint("Hello, World!")`,
     go: `package main\n\nimport "fmt"\n\nfunc main() {\n  fmt.Println("Hello, World!")\n}`,
     csharp: `using System;\n\nclass Program {\n  static void Main() {\n    Console.WriteLine("Hello, World!");\n  }\n}`,
-    javascript: `// 请在这里编写代码\nconsole.log("Hello, World!");`
+    javascript: `// 请在这里编写代码\nlogDebug("Hello, World!");`
   }
   return templates[lang] || templates.cpp
 }
@@ -831,7 +881,7 @@ const setupJudgeSubscriptions = () => {
   websocketService.subscribe('debug-judge-result', `/queue/debug-judge-result-${userId}`)
 
   stopJudgeListener = websocketService.on('judge-result', (data: any) => {
-    console.log('📩 收到判题结果:', data)
+    logDebug('📩 收到判题结果:', data)
     if (data?.userId != null && String(data.userId) !== userId) return
     const result = data?.result ?? data
     if (!result || typeof result !== 'object' || Array.isArray(result)
@@ -847,7 +897,7 @@ const setupJudgeSubscriptions = () => {
   enforceTwoSpaceIndentation()
 
   stopDebugJudgeListener = websocketService.on('debug-judge-result', (message: any) => {
-    console.log('📩 收到调试结果:', message)
+    logDebug('📩 收到调试结果:', message)
     if (!debugging.value || (message?.userId != null && String(message.userId) !== userId)) return
     const results = Array.isArray(message?.result)
       ? message.result
@@ -861,7 +911,7 @@ const setupJudgeSubscriptions = () => {
         && (record.userId == null || String(record.userId) === userId)
         && (record.userOutput == null || typeof record.userOutput === 'string')
     })) {
-      console.warn('忽略格式异常的调试结果消息')
+      logWarn('忽略格式异常的调试结果消息')
       return
     }
 
@@ -920,7 +970,7 @@ const handleFormat = () => {
     const value = model.getValue()
     const formatted = value.split('\n').map((line: any) => line.trimEnd()).join('\n').replace(/\n{3,}/g, '\n\n')
     if (formatted !== value) { model.setValue(formatted); ElMessage.success('格式化完成 ✅') } else { ElMessage.info('代码已是格式化的') }
-  } catch (error) { console.error('格式化失败:', error); ElMessage.error('格式化失败') }
+  } catch (error) { logWarn('格式化失败:', error); ElMessage.error('格式化失败') }
 }
 
 // 运行：复用调试通道快速执行当前代码。未手动改动过用例时先重置为题目样例输入，
@@ -1023,6 +1073,10 @@ const loadFavoriteOptions = async () => {
       ? favoriteOptions.value.find((item: any) => item.favoritesId === String(routeFavoriteId))
       : undefined
     selectedAddFavoriteId.value = matchedRouteFavorite?.favoritesId || favoriteOptions.value[0]?.favoritesId || ''
+  } catch (error) {
+    // 请求失败已由拦截器统一提示；本地失败不经过拦截器，需要自己提示
+    logWarn('加载收藏夹失败:', error)
+    if (isLocalFailure(error)) ElMessage.error(errorText(error, '加载收藏夹失败，请稍后重试'))
   } finally {
     favoriteOptionsLoading.value = false
   }
@@ -1057,7 +1111,7 @@ const confirmAddFavorite = async () => {
     ElMessage.success('已加入收藏夹')
     favoriteDialogVisible.value = false
   } catch (error) {
-    console.error('收藏题目失败:', error)
+    logWarn('收藏题目失败:', error)
   } finally {
     addingFavorite.value = false
   }
@@ -1078,7 +1132,7 @@ const addQuestionToReview = async () => {
       ElMessage.error(res.msg || '加入复习计划失败')
     }
   } catch (error) {
-    console.error('加入复习计划失败:', error)
+    logWarn('加入复习计划失败:', error)
   }
 }
 // ====== 拖拽调整左右面板 ======
@@ -1303,14 +1357,10 @@ const handleDebug = async () => {
 
     if (response.code === 200) {
       ElMessage.success('提交成功，请稍候，请勿刷新页面')
-    } else {
-      debugging.value = false
-      ElMessage.error(response.message || '调试失败')
     }
   } catch (error) {
     debugging.value = false
-    console.error('调试失败:', error)
-    ElMessage.error('调试请求失败')
+    logWarn('调试失败:', error)
   } finally {
     hasUserModified.value = wasUserModified
   }
@@ -1353,7 +1403,7 @@ const provideFunctionTests = async () => {
     customCases.forEach((testCase) => { testCase.provided = true })
     ElMessage.success(`已提供 ${Number(response?.data ?? customCases.length)} 个测试用例`)
   } catch (error) {
-    console.error('提供核心函数测试用例失败:', error)
+    logWarn('提供核心函数测试用例失败:', error)
   } finally {
     providingTests.value = false
   }
@@ -1411,7 +1461,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .question-detail {
-  height: 100vh;
+  height: 100vh; height: 100dvh;
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -1639,28 +1689,79 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
+  /* 手机档：三档切换（题目/代码/结果），不再是左右双栏 */
+  .main-container.mobile-mode {
+    flex-direction: column;
+  }
+
   .left-panel {
+    width: 100%;
     padding-right: 16px;
     padding-left: 16px;
+    padding-bottom: 16px;
+    flex: 1 1 auto;
   }
 
-  .resize-handle {
-    width: 4px;
+  .right-panel {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
+  /* 工具栏按钮换行，并把语言选择器改成可伸缩宽度 */
   .editor-toolbar {
+    flex-wrap: wrap;
     gap: 6px;
-    padding-right: 8px;
-    padding-left: 8px;
+    padding: 8px;
+  }
+
+  .editor-toolbar :deep(.el-select) {
+    width: auto !important;
+    flex: 1 1 110px;
+    min-width: 96px;
   }
 
   .editor-status {
     display: none;
   }
 
+  /* 结果区在手机档占满剩余高度，不再受拖拽出来的固定高度约束 */
+  .result-wrapper {
+    height: auto !important;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
   .ai-panel-shell {
     width: 100%;
   }
+}
+
+/* 手机档页签栏：只在 .mobile-mode 下出现的独立一行 */
+.mobile-pane-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--cw-bg-card);
+  border-bottom: 1px solid var(--cw-border);
+  flex: 0 0 auto;
+}
+
+.mobile-pane-tab {
+  flex: 1;
+  min-height: var(--cw-tap-target);
+  border: 0;
+  border-radius: var(--cw-radius-sm);
+  background: transparent;
+  color: var(--cw-text-2);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mobile-pane-tab.active {
+  background: var(--cw-brand-soft);
+  color: var(--cw-brand-dark);
 }
 </style>

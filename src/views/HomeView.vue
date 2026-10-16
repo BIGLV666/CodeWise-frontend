@@ -3,7 +3,7 @@
     <AppNavBar active="home" show-search v-model:search="searchKeyword" @search="handleSearch" />
 
     <div class="main-container">
-      <aside class="left-panel">
+      <aside class="left-panel cw-offcanvas" :class="{ 'is-open': nav.open.value }">
         <section class="sidebar-section">
           <div class="section-title">学习</div>
           <button class="menu-item active" type="button" @click="refreshQuestions">
@@ -65,6 +65,7 @@
         <section class="question-panel">
           <div class="content-header">
             <div class="header-left">
+              <MobileNavToggle purpose="sidebar" :open="nav.open.value" :icon="Filter" label="打开筛选与收藏" @toggle="nav.toggle" />
               <h2>题目列表</h2>
               <el-segmented
                 v-model="activeQuestionType"
@@ -102,7 +103,7 @@
               row-key="questionId"
               @row-click="goToDetail"
             >
-              <el-table-column prop="title" label="题目" min-width="240">
+              <el-table-column prop="title" label="题目" :min-width="isPhone ? 150 : 240">
                 <template #default="{ row }">
                   <div class="problem-title" :data-question-id="row.questionId">
                     <span class="status-marker">
@@ -130,12 +131,13 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="passRate" label="通过率" width="110">
+              <!-- 手机档优先保证题目名可读，统计类列收起（表格本身可横向滚动） -->
+              <el-table-column v-if="!isPhone" prop="passRate" label="通过率" width="110">
                 <template #default="{ row }">
                   {{ formatRate(row.passRate) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="totalAc" label="通过数" width="90">
+              <el-table-column v-if="!isPhone" prop="totalAc" label="通过数" width="90">
                 <template #default="{ row }">
                   {{ row.totalAc || 0 }}
                 </template>
@@ -240,13 +242,14 @@
         </section>
       </aside>
     </div>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Collection, Star, Clock, Plus, Loading, Download, Check, Setting } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Collection, Star, Clock, Filter, Plus, Loading, Download, Check, Setting } from '@element-plus/icons-vue'
 import router from '@/router'
 import questionApi from '@/api/questionApi'
 import reviewApi from '@/api/reviewApi'
@@ -254,7 +257,12 @@ import userApi from '@/api/userApi'
 import { useUserStore } from '@/stores/User'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
 import AppNavBar from '@/components/layout/AppNavBar.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
+import { useBreakpoint } from '@/composables/useBreakpoint'
 import { navigateTopLevel } from '@/utils/navigation'
+import { logWarn } from '@/utils/logger'
 
 defineOptions({ name: 'HomeView' })
 
@@ -286,6 +294,9 @@ interface CalendarDay {
 }
 
 const userStore = useUserStore()
+// 手机档左栏（筛选 + 收藏 + 复习入口）转成抽屉，桌面端仍是静态侧栏
+const nav = useMobileNav()
+const { isPhone } = useBreakpoint()
 const searchKeyword = ref('')
 const difficultyFilter = ref<number[]>([1, 2, 3])
 const statusFilter = ref<number | ''>('')
@@ -451,7 +462,7 @@ const loadQuestionTotal = async () => {
     const res: any = await questionApi.getTotal()
     totalCount.value = Number(unwrapData<number>(res, 0))
   } catch (error) {
-    if (!isUnauthorizedError(error)) console.warn('加载题目总数失败:', error)
+    if (!isUnauthorizedError(error)) logWarn('加载题目总数失败:', error)
   }
 }
 
@@ -486,8 +497,7 @@ const loadQuestions = async (isRefresh = false) => {
     }
   } catch (error) {
     if (!isUnauthorizedError(error)) {
-      console.error('加载题目失败:', error)
-      ElMessage.error('题目加载失败，请稍后重试')
+      logWarn('加载题目失败:', error)
     }
   } finally {
     loading.value = false
@@ -515,7 +525,7 @@ const loadHomeFavorites = async () => {
     const list = unwrapData<any[]>(res, [])
     homeFavorites.value = Array.isArray(list) ? list.map(mapFavorite) : []
   } catch (error) {
-    if (!isUnauthorizedError(error)) console.error('加载首页收藏夹失败:', error)
+    if (!isUnauthorizedError(error)) logWarn('加载首页收藏夹失败:', error)
     homeFavorites.value = []
   } finally {
     favoritesLoading.value = false
@@ -539,7 +549,7 @@ const loadUserProfile = async () => {
     profileAvatar.value = normalizedUser.avatarUrl || ''
     profileName.value = normalizedUser.nickName || normalizedUser.userName || localStorage.getItem('userName') || 'CW'
   } catch (error) {
-    console.warn('加载用户资料失败:', error)
+    logWarn('加载用户资料失败:', error)
   }
 }
 
@@ -549,7 +559,7 @@ const loadSubmitStats = async () => {
     const payload = unwrapData<any>(res, {})
     submitRecords.value = Array.isArray(payload.records) ? payload.records : []
   } catch (error) {
-    if (!isUnauthorizedError(error)) console.warn('加载提交统计失败:', error)
+    if (!isUnauthorizedError(error)) logWarn('加载提交统计失败:', error)
     submitRecords.value = []
   } finally {
     generateCalendar()
@@ -694,7 +704,9 @@ onBeforeUnmount(() => {
 }
 
 .leetcode-clone {
-  height: 100vh;
+  height: 100vh; height: 100dvh;
+  /* dvh 让移动端浏览器地址栏收放时不再把底部内容顶出视口；不支持的浏览器沿用 100vh */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--cw-bg-page);
@@ -1372,11 +1384,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
-  .nav-menu,
-  .left-panel {
-    display: none;
-  }
-
+  /* 左栏（筛选/收藏/复习入口）不再是"窄屏隐藏"，而是转成 .cw-offcanvas 抽屉，
+   * 由 .content-header 里的汉堡按钮开合，所以这里不再声明 display: none。 */
   .main-container {
     width: calc(100% - 28px);
     padding-top: 16px;

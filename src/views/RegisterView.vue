@@ -125,7 +125,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { User, Message, Phone, Lock, Key } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import userApi from '@/api/userApi'
@@ -268,11 +268,6 @@ const sendCaptcha = async () => {
 				}
 
 			}, 1000)
-
-		} else {
-			// ❌ 后端返回错误（如：邮箱已注册）
-			ElMessage.error(response.message || '发送验证码失败')
-			// 不启动倒计时，按钮保持可用状态
 		}
 	} catch (error) {
 
@@ -379,7 +374,6 @@ const handleRegister = async () => {
 			}
 
 		} catch (error) {
-			ElMessage.error('注册失败，请稍后重试')
 		} finally {
 			loading.value = false
 		}
@@ -436,11 +430,8 @@ const sendResetCaptcha = async () => {
 					resetCaptchaButtonText.value = `${resetCountdownSeconds.value}s`
 				}	
 			}, 1000)
-		} else {
-			ElMessage.error(response.message || '发送验证码失败')
 		}
 	} catch (error) {
-		ElMessage.error('发送验证码失败，请稍后重试')
 	}
 }
 
@@ -457,11 +448,8 @@ const handleResetPassword = async () => {
 				ElMessage.success('密码修改成功，请登录')
 				handleResetDialogClose()
 				router.replace('/login')
-			} else {
-				ElMessage.error(res.message || '密码修改失败')
 			}
 		} catch (error) {
-			ElMessage.error('密码修改失败，请稍后重试')
 		} finally {
 			resetLoading.value = false
 		}
@@ -477,7 +465,7 @@ const goToLogin = () => {
 <style scoped>
 /* ====== 容器 ====== */
 .register-container {
-	min-height: 100vh;
+	min-height: 100vh; min-height: 100dvh;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -650,7 +638,7 @@ const goToLogin = () => {
 }
 
 /* ====== 响应式 ====== */
-@media (max-width: 576px) {
+@media (max-width: 560px) {
 	.register-card {
 		padding: 0;
 		box-shadow: none !important;

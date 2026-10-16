@@ -143,6 +143,7 @@ import { Back, CircleCheck, MagicStick, Warning } from '@element-plus/icons-vue'
 import questionApi from '@/api/questionApi'
 import type { FunctionTestCaseGenerationTask } from '@/api/questionApi'
 import { useUserStore } from '@/stores/User'
+import { logWarn } from '@/utils/logger'
 
 const route = useRoute()
 const router = useRouter()
@@ -244,7 +245,7 @@ const loadPage = async () => {
     if (questionData.value?.questionType !== 'FUNCTION') throw new Error('仅核心函数题支持随机测试生成')
     if (authorized.value && !standardAnswer.value) standardAnswer.value = getStarterCode()
   } catch (error: any) {
-    console.error('加载随机测试生成页面失败:', error)
+    logWarn('加载随机测试生成页面失败:', error)
     loadError.value = error?.message || '加载题目信息失败'
   } finally {
     loading.value = false
@@ -269,7 +270,14 @@ const pollTask = async (taskId: string) => {
     else ElMessage.error(task.value?.errorMessage || '随机测试用例生成失败')
   } catch (error) {
     generating.value = false
-    console.error('查询随机测试任务失败:', error)
+    logWarn('查询随机测试任务失败:', error)
+    // 状态查询走的是 silent 轮询（失败不弹全局提示），这里必须把任务落到失败态，
+    // 否则卡片会永远停在"正在生成"，用户无从判断。
+    if (task.value) {
+      task.value = { ...task.value, status: 'FAILED', errorMessage: '查询任务状态失败，请重新生成' }
+    } else {
+      ElMessage.error('查询任务状态失败，请稍后重试')
+    }
   }
 }
 
@@ -303,7 +311,7 @@ const startGeneration = async () => {
     }
   } catch (error) {
     generating.value = false
-    console.error('创建随机测试生成任务失败:', error)
+    logWarn('创建随机测试生成任务失败:', error)
   }
 }
 
@@ -317,7 +325,7 @@ onBeforeUnmount(stopPolling)
 
 <style scoped>
 .generator-page {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   background: var(--cw-bg-page);
   color: var(--cw-text-1);
   font-family: var(--cw-font-sans);
@@ -355,7 +363,7 @@ onBeforeUnmount(stopPolling)
 
 .page-content {
   width: min(1220px, calc(100% - 48px));
-  min-height: calc(100vh - 58px);
+  min-height: calc(100vh - 58px); min-height: calc(100dvh - 58px);
   margin: 0 auto;
   padding: 36px 0 56px;
 }
@@ -541,7 +549,7 @@ onBeforeUnmount(stopPolling)
   white-space: nowrap;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .generator-layout {
     grid-template-columns: 1fr;
   }

@@ -163,6 +163,25 @@ export function errorText(error: unknown, fallback: string): string {
   return fallback
 }
 
+/**
+ * 这个错误是「本地逻辑失败」还是「请求失败」。
+ *
+ * 非 silent 的请求失败一律由响应拦截器弹提示，页面在 catch 里再弹就是一次失败两条提示。
+ * 但页面自己 `throw new Error(...)` 的分支（例如拿不到 requestId）**不经过拦截器**，
+ * 必须由页面负责提示，否则用户什么都看不到 —— 这正是历史上被静默吞掉的那一类。
+ *
+ * 判定依据：业务码失败是带 `bizCode` 的 Error，网络失败是带 `isAxiosError` 的 AxiosError，
+ * 两者都不带才当成本地失败。
+ */
+export function isLocalFailure(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return true
+  const candidate = error as { bizCode?: unknown; isAxiosError?: unknown; response?: unknown }
+  if (candidate.isAxiosError) return false
+  if (candidate.bizCode !== undefined) return false
+  if (candidate.response !== undefined) return false
+  return true
+}
+
 // 导出常用请求方法
 export const get = <T = any>(url: string, config?: AxiosRequestConfig): Promise<T> => {
   return request.get(url, config)

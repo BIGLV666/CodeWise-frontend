@@ -84,7 +84,7 @@ async function saveQuestion() {
 </script>
 
 <style scoped>
-.question-create-page { min-height: 100vh; color: var(--cw-text-1); background: var(--cw-bg-page); }
+.question-create-page { min-height: 100vh; min-height: 100dvh; color: var(--cw-text-1); background: var(--cw-bg-page); }
 .page-content { width: min(1120px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 64px; }
 .page-heading { margin-bottom: 24px; }
 .eyebrow { color: var(--cw-text-3); font-size: 11px; font-weight: 700; letter-spacing: .13em; }
@@ -96,5 +96,5 @@ h2 { margin: 0; font-size: 18px; }
 .question-form { padding: 26px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
 .save-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-top: 1px solid var(--cw-border); padding-top: 20px; }
-@media (max-width: 820px) { .page-content { width: calc(100% - 28px); padding-top: 28px; } .form-grid { grid-template-columns: 1fr; } .save-bar { flex-direction: column; align-items: flex-start; } }
+@media (max-width: 1024px) { .page-content { width: calc(100% - 28px); padding-top: 28px; } .form-grid { grid-template-columns: 1fr; } .save-bar { flex-direction: column; align-items: flex-start; } }
 </style>

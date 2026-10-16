@@ -123,6 +123,7 @@ import { useRouter } from 'vue-router'
 import { Key, Lock, Message } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import userApi from '@/api/userApi'
+import { logWarn } from '@/utils/logger'
 
 const CODE_COUNTDOWN_SECONDS = 60
 
@@ -197,7 +198,7 @@ async function sendCode() {
     startCountdown()
     step.value = 1
   } catch (error) {
-    console.error('发送验证码失败:', error)
+    logWarn('发送验证码失败:', error)
   } finally {
     sending.value = false
   }
@@ -214,7 +215,7 @@ async function resetPassword() {
     ElMessage.success('密码已重置，请使用新密码登录')
     await router.replace('/login')
   } catch (error) {
-    console.error('重置密码失败:', error)
+    logWarn('重置密码失败:', error)
   } finally {
     submitting.value = false
   }
@@ -233,7 +234,7 @@ function backToEmail() {
   --ink: var(--cw-text-1);
   --muted: #68707b;
   --accent: var(--cw-brand);
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   min-height: 100dvh;
   display: flex;
   align-items: center;
@@ -287,7 +288,7 @@ function backToEmail() {
 
 .footer-row { margin: 24px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
 
-@media (max-width: 680px) {
+@media (max-width: 768px) {
   .panel { padding: 32px 24px; }
 }
 @media (prefers-reduced-motion: reduce) {

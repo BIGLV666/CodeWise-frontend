@@ -1,10 +1,14 @@
 <template>
   <div class="plan-view">
-    <AppNavBar active="home" />
+    <AppNavBar active="home">
+      <template #actions>
+        <MobileNavToggle purpose="sidebar" :open="nav.open.value" :icon="Calendar" label="打开计划侧栏" @toggle="nav.toggle" />
+      </template>
+    </AppNavBar>
 
     <div class="main-container">
       <!-- 左侧边栏：选中日期计划列表 + 本周概览 -->
-      <aside class="plan-sidebar">
+      <aside class="plan-sidebar cw-offcanvas" :class="{ 'is-open': nav.open.value }">
         <div class="sidebar-header">
           <div class="selected-date">
             <span class="date-label">计划日期</span>
@@ -189,6 +193,8 @@
         </div>
       </template>
     </el-dialog>
+
+    <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
 
@@ -196,8 +202,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, ArrowRight, Check, Plus, Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Calendar, Check, Plus, Refresh } from '@element-plus/icons-vue'
 import AppNavBar from '@/components/layout/AppNavBar.vue'
+import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
+import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
+import { useMobileNav } from '@/composables/useMobileNav'
 import progressApi, {
   PROGRESS_STATUS_TAG,
   PROGRESS_STATUS_TEXT,
@@ -206,10 +215,13 @@ import progressApi, {
   type ProgressTracker,
   type WeeklyReportVo,
 } from '@/api/progressApi'
+import { logWarn } from '@/utils/logger'
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'] as const
 
 const router = useRouter()
+// 手机档左侧计划侧栏转成抽屉
+const nav = useMobileNav()
 
 const viewYear = ref(new Date().getFullYear())
 const viewMonth = ref(new Date().getMonth())
@@ -314,7 +326,7 @@ async function loadCalendar() {
     list.forEach((item) => map.set(item.date, item))
     calendarMap.value = map
   } catch (error) {
-    console.error('加载月历失败:', error)
+    logWarn('加载月历失败:', error)
     calendarMap.value = new Map()
   } finally {
     calendarLoading.value = false
@@ -334,7 +346,7 @@ async function loadPlans() {
       status: normalizeStatus(item.status),
     }))
   } catch (error) {
-    console.error('加载计划列表失败:', error)
+    logWarn('加载计划列表失败:', error)
     dayPlans.value = []
   } finally {
     plansLoading.value = false
@@ -346,7 +358,7 @@ async function loadWeeklyReport() {
     const res: any = await progressApi.weeklyReport()
     weekly.value = unwrapData<WeeklyReportVo | null>(res, null)
   } catch (error) {
-    console.error('加载周报失败:', error)
+    logWarn('加载周报失败:', error)
     weekly.value = null
   }
 }
@@ -420,7 +432,7 @@ async function submitCreate() {
     selectedDate.value = createForm.beginTime
     await Promise.all([loadCalendar(), loadPlans(), loadWeeklyReport()])
   } catch (error) {
-    console.error('创建计划失败:', error)
+    logWarn('创建计划失败:', error)
   } finally {
     saving.value = false
   }
@@ -453,7 +465,7 @@ async function submitEdit() {
     editVisible.value = false
     await Promise.all([loadCalendar(), loadPlans(), loadWeeklyReport()])
   } catch (error) {
-    console.error('更新计划失败:', error)
+    logWarn('更新计划失败:', error)
   } finally {
     saving.value = false
   }
@@ -475,7 +487,7 @@ async function removePlan(plan: ProgressTracker) {
     ElMessage.success('计划已删除')
     await Promise.all([loadCalendar(), loadPlans(), loadWeeklyReport()])
   } catch (error) {
-    console.error('删除计划失败:', error)
+    logWarn('删除计划失败:', error)
   }
 }
 
@@ -496,7 +508,9 @@ onMounted(() => {
 
 <style scoped>
 .plan-view {
-  height: 100vh;
+  height: 100vh; height: 100dvh;
+  /* dvh：移动端浏览器地址栏收放时不把底部内容顶出视口 */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -836,8 +850,10 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .plan-sidebar {
-    display: none;
+  /* 侧栏不再是"窄屏隐藏"：改成 .cw-offcanvas 抽屉，由顶栏汉堡按钮开合 */
+  .main-container {
+    display: block;
+    overflow: visible;
   }
   .plan-content {
     padding: 12px;

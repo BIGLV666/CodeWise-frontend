@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import notificationApi from '@/api/notificationApi';
+import { logWarn } from '@/utils/logger'
 
 export const useNotificationStore = defineStore('notification', {
     state: () => ({
@@ -18,7 +19,7 @@ export const useNotificationStore = defineStore('notification', {
                 this.unreadCount = Number.isFinite(count) ? Math.max(0, count) : 0;
                 this.loaded = true;
             } catch (error) {
-                console.warn('未读通知数量加载失败:', error);
+                logWarn('未读通知数量加载失败:', error);
             } finally {
                 this.loading = false;
             }

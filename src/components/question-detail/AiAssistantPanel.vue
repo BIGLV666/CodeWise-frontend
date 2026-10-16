@@ -241,6 +241,7 @@ import websocketService from '@/utils/WebSocket'
 import { renderMarkdown } from '@/utils/markdown'
 import { buildAiModelParams } from '@/utils/aiModelSelection'
 import AiModelConfigDialog from '@/components/ai/AiModelConfigDialog.vue'
+import { logWarn } from '@/utils/logger'
 
 const props = defineProps<{
   visible: boolean
@@ -362,7 +363,7 @@ async function loadModelConfigs() {
     }
     resetSelectionIfMissing()
   } catch (error) {
-    console.error('AI 模型配置加载失败:', error)
+    logWarn('AI 模型配置加载失败:', error)
   }
 }
 
@@ -383,7 +384,7 @@ async function loadPlatformModels() {
       .map((name) => name.trim())
   } catch (error) {
     // 目录拿不到就只是隐藏「平台模型」一节：用户自己的分组仍然可用，不该整块报错
-    console.error('平台模型目录加载失败:', error)
+    logWarn('平台模型目录加载失败:', error)
     platformModels.value = []
   }
   resetSelectionIfMissing()
@@ -436,7 +437,7 @@ async function findConversation() {
     }
   } catch (error) {
     loadedQuestionId.value = ''
-    console.error('AI 会话加载失败:', error)
+    logWarn('AI 会话加载失败:', error)
   } finally {
     conversationLoading.value = false
   }
@@ -471,7 +472,7 @@ async function loadMessages(loadOlder: boolean) {
       }
     }
   } catch (error) {
-    console.error('AI 消息加载失败:', error)
+    logWarn('AI 消息加载失败:', error)
   } finally {
     historyLoading.value = false
   }
@@ -575,7 +576,7 @@ async function sendQuestion() {
     messages.value = messages.value.filter((message) => String(message.messageId) !== optimisticId)
     messages.value = messages.value.filter((message) => String(message.messageId) !== streamingId)
     question.value = content
-    console.error('AI 追问失败:', error)
+    logWarn('AI 追问失败:', error)
     // 必须报给用户：原来这里只写控制台，用户侧表现是"点了发送什么都没发生"
     // （后端其实已经把 ASSISTANT 行置为 FAILED，并回了一个带原因的 error 事件）。
     // 消息文本取服务端下发的枚举文案，例如「该模型暂时无法响应，请更换模型或稍后重试」。

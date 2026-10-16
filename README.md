@@ -95,11 +95,7 @@ src/
 
 ## 本地开发
 
-项目根目录：
-
-```text
-E:\learncard\CodeWise-frontend
-```
+仓库位置不限；与后端一起构建部署时，须与 `CodeWise` 仓库处于同级目录（`deploy/docker-compose.yml` 中前端镜像的构建上下文是 `../../CodeWise-frontend`）。
 
 安装依赖：
 

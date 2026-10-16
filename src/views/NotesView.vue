@@ -781,6 +781,9 @@ onMounted(() => {
 
   .note-list-panel {
     width: 100%;
+    /* 这一页没有全局 border-box，不显式声明的话 padding 会加到 100% 之外，
+       面板比容器宽 24px，右侧内容被 .main-container 裁掉 */
+    box-sizing: border-box;
     max-height: 42vh;
     border-right: 0;
     border-bottom: 1px solid var(--cw-border);

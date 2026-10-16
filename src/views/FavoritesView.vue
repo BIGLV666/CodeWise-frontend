@@ -454,7 +454,9 @@ onMounted(() => {
   gap: 10px;
 }
 
-@media (max-width: 1024px) {
+/* 原阈值 1180px：归一化取 1280（只提前、不延后）。
+ * 否则 1025–1180 会挤成两栏，右侧题目列表的表格只能横向滚动。 */
+@media (max-width: 1280px) {
   .content-panel {
     grid-template-columns: 1fr;
   }

@@ -16,11 +16,19 @@ import { launchChrome } from './cdp.mjs'
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const distDir = join(projectRoot, 'dist')
 
-/** 四档视口：手机 / 平板竖 / 平板横 / 桌面 */
+/**
+ * 视口档位。
+ *
+ * 除四档语义断点外，额外覆盖 1120 / 1180：这两个宽度处在「多栏退单栏」的临界区间，
+ * 断点归一化如果方向搞反（该提前却延后），问题恰好只在这里暴露 ——
+ * 表现为内容被祖先的 overflow: hidden 裁掉，而文档本身不溢出，光看 scrollWidth 抓不到。
+ */
 const VIEWPORTS = [
   { name: '手机 375', width: 375, height: 812, mobile: true },
   { name: '平板 768', width: 768, height: 1024, mobile: false },
   { name: '平板 1024', width: 1024, height: 768, mobile: false },
+  { name: '临界 1120', width: 1120, height: 800, mobile: false },
+  { name: '临界 1180', width: 1180, height: 800, mobile: false },
   { name: '桌面 1440', width: 1440, height: 900, mobile: false },
 ]
 
@@ -103,6 +111,8 @@ function rectProbe(selector) {
       width: Math.round(r.width),
       visibility: getComputedStyle(el).visibility,
       display: getComputedStyle(el).display,
+      // 容器自身的横向溢出：>0 说明内容比容器宽，可能正被祖先的 overflow: hidden 裁掉
+      overflowX: el.scrollWidth - el.clientWidth,
     };
   })()`
 }
@@ -167,6 +177,12 @@ describe('响应式：路由 × 视口矩阵', { concurrency: false }, () => {
           assert.ok(
             rect.left >= -1 && rect.right <= overflow.clientWidth + 1,
             `${selector} 超出视口：left=${rect.left} right=${rect.right} 视口=${overflow.clientWidth}（${route.path} @ ${viewport.name}）`,
+          )
+          // 这些选择器都是各页面的顶层布局容器，本身不该需要横向滚动；
+          // 一旦需要，通常意味着里面的内容已经被裁掉（文档 scrollWidth 看不出来）。
+          assert.ok(
+            rect.overflowX <= 1,
+            `${selector} 内容被裁切：scrollWidth 比 clientWidth 大 ${rect.overflowX}px（${route.path} @ ${viewport.name}）`,
           )
         }
 

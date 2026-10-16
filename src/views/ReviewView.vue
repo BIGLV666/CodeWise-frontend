@@ -1025,7 +1025,9 @@ onActivated(loadReviewPage)
   width: 100%;
 }
 
-@media (max-width: 1024px) {
+/* 原阈值 1120px：归一化时取「不小于它的最小档位」1280，
+ * 保证折叠只会提前、不会延后（延后会在 1024–1180 露出被挤扁的统计卡）。 */
+@media (max-width: 1280px) {
   .overview-panel {
     grid-template-columns: 1fr;
     gap: 28px;
@@ -1034,13 +1036,20 @@ onActivated(loadReviewPage)
   .progress-card {
     align-items: stretch;
   }
+}
 
+@media (max-width: 1024px) {
   /* 搜索框改为可收缩，避免 769–1024 区间与右侧按钮挤爆顶栏 */
   .search-input {
     width: 160px;
     flex: 0 1 160px;
     min-width: 96px;
   }
+}
+
+/* 空间再紧时统计卡按最小宽度自动换行，而不是把标签压成竖排单字 */
+.metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
 }
 
 @media (max-width: 768px) {

@@ -70,7 +70,36 @@ export const useUserStore = defineStore('user', {
       localStorage.removeItem('avatarUrl')
       localStorage.removeItem('roleId')
     },
-    
+
+    /**
+     * 用户主动退出登录。
+     *
+     * 顺序很重要：**先**通知后端拉黑 token，**再**清本地状态 ——
+     * 请求拦截器要从 store 里取 token 放进 Authorization 头，反过来就没凭证了。
+     *
+     * 后端调用失败不阻断登出：本地凭证照清、页面照跳登录页。
+     * 让用户因为一次网络抖动被困在「点了退出却还在登录态」里，比留下一个
+     * 未拉黑的 token 更糟；失败只记开发期日志，不弹提示（用户无法处理）。
+     *
+     * 只用于用户主动退出。401 失效与账号冻结/注销不调这个：
+     * 前者的 token 本已无效，后者不是登出（账号状态变更），
+     * 此时再发一次登出请求失败只会多弹一条无意义的错误提示。
+     */
+    async logoutWithServer() {
+      if (this.token) {
+        try {
+          const { default: userApi } = await import('@/api/userApi')
+          await userApi.logout()
+        } catch (error) {
+          logWarn('通知后端登出失败，仅清理本地登录态:', error)
+        }
+      }
+      this.logout()
+      // 与改动前的退出行为保持一致：清掉本机残留（草稿、界面偏好等），
+      // 避免换人登录后看到上一位用户的内容。
+      localStorage.clear()
+    },
+
     updateUser(data: Partial<userDto>) {
       if (this.userDto) {
         Object.assign(this.userDto, data)

@@ -51,7 +51,8 @@
                   <el-dropdown-item command="avatar">更换头像</el-dropdown-item>
                   <el-dropdown-item command="profile">编辑资料</el-dropdown-item>
                   <el-dropdown-item command="password">修改密码</el-dropdown-item>
-                  <el-dropdown-item command="freeze" divided>冻结账号</el-dropdown-item>
+                  <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+                  <el-dropdown-item command="freeze">冻结账号</el-dropdown-item>
                   <el-dropdown-item command="delete">注销账号</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -1098,6 +1099,10 @@ const handleProfileCommand = (command: string) => {
     openPasswordDialog()
     return
   }
+  if (command === 'logout') {
+    void logoutAccount()
+    return
+  }
   if (command === 'freeze') {
     openFreezeDialog()
     return
@@ -1105,6 +1110,12 @@ const handleProfileCommand = (command: string) => {
   if (command === 'delete') {
     void deleteAccount()
   }
+}
+
+/** 用户主动退出登录：先通知后端拉黑 token，再回登录页。 */
+const logoutAccount = async () => {
+  await userStore.logoutWithServer()
+  await router.push('/login')
 }
 
 onMounted(async () => {

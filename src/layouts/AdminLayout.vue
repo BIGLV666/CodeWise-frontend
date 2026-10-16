@@ -82,12 +82,14 @@ import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
 import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
 import { useBreakpoint } from '@/composables/useBreakpoint'
 import { useMobileNav } from '@/composables/useMobileNav'
+import { useUserStore } from '@/stores/User'
 import { navigateHome } from '@/utils/navigation'
 
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
 const nav = useMobileNav()
+const userStore = useUserStore()
 const { isPhone, isTablet } = useBreakpoint()
 
 // 平板默认收成图标轨；手机档侧栏是抽屉，需要显示文字，所以强制展开。
@@ -126,8 +128,9 @@ const goHome = () => {
   void navigateHome(router)
 }
 
-const logout = () => {
-  localStorage.clear()
+const logout = async () => {
+  // 先通知后端拉黑 token（用 store 里的凭证），再清本地并回登录页
+  await userStore.logoutWithServer()
   router.push('/login')
 }
 </script>

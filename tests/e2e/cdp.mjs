@@ -36,6 +36,8 @@ export class PageSession {
     /** 控制台输出（console.* 与未捕获异常）。 */
     this.consoleMessages = []
     this.pageErrors = []
+    /** 页面发出的请求（method + pathname），用于断言是否真的调了某个接口。 */
+    this.requests = []
   }
 
   send(method, params = {}) {
@@ -72,11 +74,26 @@ export class PageSession {
       const details = params.exceptionDetails ?? {}
       this.pageErrors.push(details.exception?.description ?? details.text ?? 'unknown error')
     })
+
+    this.on('Network.requestWillBeSent', (params) => {
+      try {
+        const { pathname } = new URL(params.request?.url ?? '')
+        this.requests.push({ method: params.request?.method ?? 'GET', pathname })
+      } catch {
+        // data: / blob: 之类的 URL 解析不了，忽略
+      }
+    })
+  }
+
+  /** 是否发出过某个请求（只比对 pathname）。 */
+  requested(pathname) {
+    return this.requests.some((entry) => entry.pathname === pathname)
   }
 
   clearConsole() {
     this.consoleMessages.length = 0
     this.pageErrors.length = 0
+    this.requests.length = 0
   }
 
   /** 收集到的 console.error（不含 warn/log）。 */

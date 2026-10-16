@@ -11,6 +11,19 @@ const userApi={
      login(username:string,password:string){
         return request.post<LoginResult>('/user/login',null,{params:{username,password}});
      },
+     /**
+      * 退出登录：让后端把当前 token 拉黑（服务端按 7 天窗口持久化）。
+      *
+      * 不带任何参数——后端从网关注入的请求头里取用户与 token，
+      * 所以调用时必须保证 store 里还有 token（先调接口、再清本地）。
+      *
+      * silent：这一步失败时本地登出照样完成、页面照样回登录页，
+      * 再弹一条「服务出了点问题」只会让用户以为自己没退出成功
+      * （而且提示会落在登录页上）。失败由调用方记开发期日志。
+      */
+     logout(){
+        return request.post<string>('/user/logout', null, { silent: true });
+     },
      emailRegister(email:string,password:string,username:string){
       return request.post('/user/emailregister',null,{params:{email,password,username}});
      },

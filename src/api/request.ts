@@ -98,6 +98,14 @@ request.interceptors.response.use(
  (response: AxiosResponse) => {
     const res = response.data
     if (res.code !== 200) {
+      // TODO(会话失效): 后端 UserAuthInterceptor 命中 token 黑名单时返回的是
+      //  HTTP 200 + code:403（「您的登录已过期，请重新登录」），走的就是下面这条分支 ——
+      //  只弹提示、不清本地会话、不跳登录页。
+      //  于是「A 设备退出/冻结/注销，B 设备仍持旧 token」时，B 的每次操作都只弹一条提示，
+      //  用户没有自救途径（多设备踢出正是黑名单要解决的场景）。
+      //  修法建议：后端改为返回专用业务码（复用 TOKEN_INVALID 的 4010002 语义）而不是裸 403，
+      //  这里识别到该码后与下面的 401 分支同样处理：logout + 一次提示 + 跳登录页。
+      //  不要按 code === 403 判别：其它 403 表示「没有权限」，会误伤。
       const message = res.message || '操作失败，请稍后重试'
       if (!response.config?.silent) notifyError(message)
       // 把业务码一并挂到错误上，便于调用方按码分支（如 AI 实时分析的

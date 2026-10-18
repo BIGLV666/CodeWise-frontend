@@ -61,6 +61,12 @@
           </div>
         </div>
 
+        <!-- 就地告知：帖子会公开展示并进入审核（可在弹窗里查看完整规范） -->
+        <LegalNotice
+          class="compose-notice"
+          text="发布后内容将对所有用户公开，并进入审核流程，请不要包含他人隐私信息。"
+        />
+
         <div class="editor-toolbar">
           <button v-for="action in toolbarActions" :key="action.label" type="button" class="tool-chip" @click="insertSnippet(action.snippet)">
             {{ action.label }}
@@ -105,6 +111,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import communityApi from '@/api/communityApi'
+import LegalNotice from '@/components/legal/LegalNotice.vue'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import { renderMarkdown } from '@/utils/markdown'
 import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
@@ -426,6 +433,11 @@ onMounted(loadEditingPost)
   gap: 10px;
   border-bottom: 1px solid var(--cw-bg-subtle);
   overflow-x: auto;
+}
+
+.compose-notice {
+  flex: 0 0 auto;
+  margin: 12px 24px 0;
 }
 
 .tool-chip {

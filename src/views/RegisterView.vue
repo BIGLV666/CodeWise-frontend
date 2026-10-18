@@ -64,13 +64,14 @@
 					</div>
 				</el-form-item>
 
-				<!-- 用户协议 -->
-				<el-form-item>
-					<el-checkbox v-model="registerForm.agree">
-						我已阅读并同意
-						<el-link type="primary" :underline="'hover'">《用户协议》</el-link>
-						<el-link type="primary" :underline="'hover'">《隐私政策》</el-link>
-					</el-checkbox>
+				<!-- 使用规范与隐私说明：勾选前可点开阅读，弹窗与 /legal/* 同源 -->
+				<el-form-item prop="agree">
+					<div class="agree-row">
+						<el-checkbox v-model="registerForm.agree">我已阅读并同意</el-checkbox>
+						<el-link type="primary" :underline="'hover'" @click.prevent="openLegalDoc('usage')">《使用规范》</el-link>
+						<span class="agree-joiner">与</span>
+						<el-link type="primary" :underline="'hover'" @click.prevent="openLegalDoc('privacy')">《隐私说明》</el-link>
+					</div>
 				</el-form-item>
 
 				<!-- 注册按钮 -->
@@ -90,7 +91,10 @@
 
 			</el-form>
 		</el-card>
-			
+
+		<!-- 平台声明弹窗：注册页与登录/忘记密码/个人主页共用同一份正文 -->
+		<LegalDocDialog v-model="legalDialogVisible" :doc="legalDialogDoc" />
+		
 
 		<!-- 忘记密码对话框 -->
 		<el-dialog v-model="resetDialogVisible" title="找回密码" width="460px" :before-close="handleResetDialogClose">
@@ -129,8 +133,19 @@ import { ElMessage } from 'element-plus'
 import { User, Message, Phone, Lock, Key } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import userApi from '@/api/userApi'
+import LegalDocDialog from '@/components/legal/LegalDocDialog.vue'
+import type { LegalDocKey } from '@/utils/legalDocs'
 // ====== 路由 ======
 const router = useRouter()
+
+// ====== 平台声明（使用规范 / 隐私说明）======
+const legalDialogVisible = ref(false)
+const legalDialogDoc = ref<LegalDocKey>('usage')
+
+const openLegalDoc = (doc: LegalDocKey) => {
+	legalDialogDoc.value = doc
+	legalDialogVisible.value = true
+}
 
 // ====== 表单引用 ======
 const registerFormRef = ref<FormInstance>()
@@ -184,7 +199,7 @@ const validateConfirmPassword = (rule: any, value: string, callback: any) => {
 
 const validateAgree = (rule: any, value: any, callback: any) => {
 	if (!registerForm.agree) {
-		callback(new Error('请先阅读并同意用户协议'))
+		callback(new Error('请先阅读并同意《使用规范》与《隐私说明》'))
 	} else {
 		callback()
 	}
@@ -614,6 +629,18 @@ const goToLogin = () => {
 	flex-shrink: 0;
 	border-radius: 8px;
 	font-size: 14px;
+}
+
+/* ====== 协议勾选 ====== */
+.agree-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 2px;
+}
+
+.agree-joiner {
+	color: var(--cw-text-3);
 }
 
 /* ====== 注册按钮 ====== */

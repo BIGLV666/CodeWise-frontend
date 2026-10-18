@@ -17,6 +17,7 @@
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item" type="button" @click="goDiscuss">讨论</button>
           <button class="nav-item active" type="button">复习</button>
+          <LegalDrawerLinks />
         </nav>
       </div>
 
@@ -30,6 +31,7 @@
           clearable
         />
         <InboxButton />
+        <LegalHelpMenu class="cw-hide-phone" />
         <el-tooltip content="全部复习内容" placement="bottom">
           <el-button :icon="Tickets" circle size="small" @click="historyDrawerVisible = true" />
         </el-tooltip>
@@ -292,6 +294,8 @@ import { errorText, isLocalFailure } from '@/api/request'
 import { logWarn } from '@/utils/logger'
 import reviewApi, { type ReviewConfig, type ReviewQuestionDto, type ReviewRecord } from '@/api/reviewApi'
 import ReviewHistoryDrawer from '@/components/review/ReviewHistoryDrawer.vue'
+import LegalDrawerLinks from '@/components/legal/LegalDrawerLinks.vue'
+import LegalHelpMenu from '@/components/legal/LegalHelpMenu.vue'
 import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
 import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
 import { useMobileNav } from '@/composables/useMobileNav'

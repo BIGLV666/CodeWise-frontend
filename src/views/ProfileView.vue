@@ -17,10 +17,12 @@
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item" type="button" @click="goDiscuss">讨论</button>
           <button class="nav-item" type="button" @click="goReview">复习</button>
+          <LegalDrawerLinks />
         </nav>
       </div>
       <div class="navbar-right">
         <InboxButton />
+        <LegalHelpMenu class="cw-hide-phone" />
         <el-button :icon="Refresh" circle size="small" :loading="loading" @click="loadProfile" />
         <el-avatar :size="34" :src="avatarUrl">{{ avatarText }}</el-avatar>
       </div>
@@ -82,6 +84,13 @@
           <div class="tag-list">
             <el-tag v-for="lang in preferredLanguages" :key="lang" effect="plain">{{ lang }}</el-tag>
           </div>
+        </section>
+
+        <!-- 平台声明入口：个人主页是「我的账号/我的内容」的自然落点 -->
+        <section class="side-card">
+          <h2>平台声明</h2>
+          <button class="side-link" type="button" @click="openLegalDoc('usage')">使用规范</button>
+          <button class="side-link" type="button" @click="openLegalDoc('privacy')">隐私说明</button>
         </section>
       </aside>
 
@@ -448,6 +457,9 @@
       </template>
     </el-dialog>
 
+    <!-- 平台声明弹窗 -->
+    <LegalDocDialog v-model="legalDialogVisible" :doc="legalDialogDoc" />
+
     <MobileNavBackdrop v-if="nav.open.value" @close="nav.close" />
   </div>
 </template>
@@ -484,8 +496,12 @@ import adminAppealApi, { type AppealItem } from '@/api/adminAppealApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import type UserDto from '@/types/UserDto'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
+import type { LegalDocKey } from '@/utils/legalDocs'
 import InboxButton from '@/components/notification/InboxButton.vue'
 import AiModelConfigDialog from '@/components/ai/AiModelConfigDialog.vue'
+import LegalDocDialog from '@/components/legal/LegalDocDialog.vue'
+import LegalDrawerLinks from '@/components/legal/LegalDrawerLinks.vue'
+import LegalHelpMenu from '@/components/legal/LegalHelpMenu.vue'
 import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
 import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
 import { useMobileNav } from '@/composables/useMobileNav'
@@ -509,6 +525,15 @@ const nav = useMobileNav()
 const userStore = useUserStore()
 const loading = ref(false)
 const profileSection = ref<'overview' | 'content' | 'ai'>('overview')
+
+// 平台声明弹窗
+const legalDialogVisible = ref(false)
+const legalDialogDoc = ref<LegalDocKey>('usage')
+
+function openLegalDoc(doc: LegalDocKey) {
+  legalDialogDoc.value = doc
+  legalDialogVisible.value = true
+}
 const profileSaving = ref(false)
 const avatarUploading = ref(false)
 const profileDialogVisible = ref(false)

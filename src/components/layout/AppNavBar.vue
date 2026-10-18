@@ -32,6 +32,7 @@
         >
           {{ item.label }}
         </button>
+        <LegalDrawerLinks />
       </nav>
     </div>
 
@@ -47,6 +48,7 @@
         @update:model-value="onSearchInput"
       />
       <slot name="actions" />
+      <LegalHelpMenu class="cw-hide-phone" />
       <InboxButton v-if="active !== 'inbox'" />
       <el-button
         v-if="userStore.isAdmin"
@@ -83,6 +85,8 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Close, Search, Tools } from '@element-plus/icons-vue'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
+import LegalDrawerLinks from '@/components/legal/LegalDrawerLinks.vue'
+import LegalHelpMenu from '@/components/legal/LegalHelpMenu.vue'
 import InboxButton from '@/components/notification/InboxButton.vue'
 import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
 import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'

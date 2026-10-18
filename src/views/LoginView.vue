@@ -155,10 +155,18 @@
               <button type="button" class="text-action strong" @click="router.push('/register')">免费注册</button>
             </p>
           </el-form>
-          <p class="privacy-note">登录即表示你同意平台的使用规范与隐私说明。</p>
+          <p class="privacy-note">
+            登录即表示你同意
+            <button type="button" class="text-action" @click="openLegalDoc('usage')">《使用规范》</button>
+            与
+            <button type="button" class="text-action" @click="openLegalDoc('privacy')">《隐私说明》</button>
+          </p>
         </div>
       </section>
     </main>
+
+    <!-- 平台声明弹窗：与 /legal/:doc 同源正文 -->
+    <LegalDocDialog v-model="legalDialogVisible" :doc="legalDialogDoc" />
   </div>
 </template>
 
@@ -168,12 +176,23 @@ import { useRouter } from 'vue-router'
 import { CircleCheck, Key, Lock, MagicStick, Message, Refresh, User } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import userApi from '@/api/userApi'
+import LegalDocDialog from '@/components/legal/LegalDocDialog.vue'
 import { useUserStore } from '@/stores/User'
+import type { LegalDocKey } from '@/utils/legalDocs'
 import type UserDto from '@/types/UserDto'
 import { logWarn } from '@/utils/logger'
 
 const REMEMBERED_ACCOUNT_KEY = 'codewise_remembered_account'
 const CODE_COUNTDOWN_SECONDS = 60
+
+// 平台声明弹窗：登录页只提供入口，正文统一由 LegalDocDialog 渲染。
+const legalDialogVisible = ref(false)
+const legalDialogDoc = ref<LegalDocKey>('usage')
+
+function openLegalDoc(doc: LegalDocKey) {
+  legalDialogDoc.value = doc
+  legalDialogVisible.value = true
+}
 
 const loginFormRef = ref<FormInstance>()
 const codeFormRef = ref<FormInstance>()
@@ -431,6 +450,7 @@ async function handleLogin() {
 .login-button:hover, .login-button:focus { border-color: #34363a; background: #34363a; }
 .register-row { margin: 22px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
 .privacy-note { margin: 46px 0 0; color: var(--cw-text-3); font-size: 11px; line-height: 1.6; text-align: center; }
+.privacy-note .text-action { font-size: 11px; }
 
 @media (max-width: 1024px) {
   .brand-bar { display: none; }

@@ -69,6 +69,12 @@
     </div>
 
     <footer class="composer">
+      <!-- 就地告知：AI 会读取当前题目与代码片段 -->
+      <LegalNotice
+        class="composer-notice"
+        text="AI 会读取当前题目与你输入的代码片段用于生成回答，请不要粘贴含个人隐私的内容。"
+        doc="privacy"
+      />
       <el-input
         v-model="question"
         type="textarea"
@@ -241,6 +247,7 @@ import websocketService from '@/utils/WebSocket'
 import { renderMarkdown } from '@/utils/markdown'
 import { buildAiModelParams } from '@/utils/aiModelSelection'
 import AiModelConfigDialog from '@/components/ai/AiModelConfigDialog.vue'
+import LegalNotice from '@/components/legal/LegalNotice.vue'
 import { logWarn } from '@/utils/logger'
 
 const props = defineProps<{
@@ -867,6 +874,10 @@ onBeforeUnmount(() => {
 .composer:focus-within {
   border-color: #8b73ef;
   box-shadow: 0 0 0 2px rgba(114, 87, 232, 0.1);
+}
+.composer-notice {
+  margin: 0 0 8px;
+  font-size: 11px;
 }
 .composer :deep(.el-textarea__inner) {
   padding: 0;

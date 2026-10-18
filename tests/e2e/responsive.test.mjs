@@ -70,6 +70,8 @@ const GUEST_ROUTES = [
   { path: '/login', expect: ['.auth-shell'] },
   { path: '/register', expect: ['.register-container'] },
   { path: '/forgot-password', expect: ['.auth-shell'] },
+  { path: '/legal/usage', expect: ['.legal-page', '.legal-panel', '.legal-doc-content'] },
+  { path: '/legal/privacy', expect: ['.legal-page', '.legal-panel', '.legal-doc-content'] },
 ]
 
 function futureToken() {

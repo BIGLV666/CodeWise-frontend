@@ -8,6 +8,8 @@ const router = createRouter({
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { stack: 'auth' } },
     { path: '/register', name: 'register', component: () => import('@/views/RegisterView.vue'), meta: { stack: 'auth' } },
     { path: '/forgot-password', name: 'forgot-password', component: () => import('@/views/ForgotPasswordView.vue'), meta: { stack: 'auth' } },
+    // 平台声明：登录前后都要能看，属于公开路径（见下方 PUBLIC_PATHS 与守卫）。
+    { path: '/legal/:doc', name: 'legal', component: () => import('@/views/LegalView.vue'), meta: { stack: 'auth' } },
 
     { path: '/home', name: 'home', component: () => import('@/views/HomeView.vue'), meta: { stack: 'root', keepAlive: true } },
     { path: '/favorites', name: 'favorites', component: () => import('@/views/FavoritesView.vue'), meta: { stack: 'root' } },
@@ -75,6 +77,9 @@ function hasValidToken() {
 
 router.beforeEach(async (to) => {
   const authenticated = hasValidToken()
+  // 平台声明是「谁都能看」的页面：未登录放行，已登录也不弹回首页
+  //（它常被当作分享链接打开，弹走等于看不到）。
+  if (to.name === 'legal') return true
   if (PUBLIC_PATHS.has(to.path)) return authenticated ? '/home' : true
   if (!authenticated) return { path: '/login', query: { redirect: to.fullPath } }
 

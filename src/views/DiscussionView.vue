@@ -17,6 +17,7 @@
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item active" type="button">讨论</button>
           <button class="nav-item" type="button" @click="goReview">复习</button>
+          <LegalDrawerLinks />
         </nav>
       </div>
 
@@ -30,6 +31,7 @@
           clearable
         />
         <InboxButton />
+        <LegalHelpMenu class="cw-hide-phone" />
         <button class="avatar-entry" type="button" @click="goProfile" aria-label="进入个人主页">
           <el-avatar :size="32" :src="avatarUrl">{{ avatarText }}</el-avatar>
         </button>
@@ -210,6 +212,8 @@ import communityApi from '@/api/communityApi'
 import questionApi from '@/api/questionApi'
 import { normalizeAvatarUrl } from '@/utils/avatar'
 import InboxButton from '@/components/notification/InboxButton.vue'
+import LegalDrawerLinks from '@/components/legal/LegalDrawerLinks.vue'
+import LegalHelpMenu from '@/components/legal/LegalHelpMenu.vue'
 import MobileNavToggle from '@/components/layout/MobileNavToggle.vue'
 import MobileNavBackdrop from '@/components/layout/MobileNavBackdrop.vue'
 import { useMobileNav } from '@/composables/useMobileNav'

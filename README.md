@@ -76,6 +76,30 @@ CodeWise 是一个面向算法学习、刷题、复习和技术交流的在线�
 
 完整测试内容见 [`markdown-render-test.md`](markdown-render-test.md)。
 
+## 平台声明（使用规范与隐私说明）
+
+正文以纯 HTML 维护在 `src/content/legal/*.html`，构建期通过 Vite `?raw` 内联进产物，运行时不再发请求。
+
+- 展示形态有两种，**共用同一份正文**：登录页/注册页/忘记密码/个人主页用弹窗（`components/legal/LegalDocDialog.vue`），分享或站外访问走公开路由 `/legal/usage`、`/legal/privacy`（`views/LegalView.vue`）。
+- 渲染统一在 `components/legal/LegalDocContent.vue`：先经 DOMPurify 清洗再 `v-html`，与 Markdown 渲染保持同一套安全策略。
+- 文档标识与路径这类纯逻辑在 `utils/legalKeys.ts`（可被 Node 直接单测），正文登记在 `utils/legalDocs.ts`。
+- 正文里的跨文档链接写成 `<a href="/legal/xxx" data-legal="xxx">`，弹窗内切换文档、独立页改路由都由 `data-legal` 派发，不会整页刷新。
+- 新增一份声明：加一个 `.html` 正文 → 在 `utils/legalKeys.ts` 的 `LEGAL_DOC_KEYS` 与 `utils/legalDocs.ts` 的 `LEGAL_DOCS` 登记 → 确认 `/legal/:doc` 能取到；`tests/legal-docs.test.mjs` 会校验条款完整性与内链一致性。
+
+### 入口
+
+声明必须在"用户需要它的那一刻"就能点到，因此入口分三层：
+
+| 场景 | 组件 | 位置 |
+| --- | --- | --- |
+| 桌面常驻 | `LegalHelpMenu.vue` | 五个导航栏右侧的「?」下拉（AppNavBar / 复习 / 讨论 / 个人主页 / 做题页顶栏） |
+| 手机常驻 | `LegalDrawerLinks.vue` | 各页导航抽屉底部（桌面档自动隐藏）；做题页没有抽屉，收进顶栏「更多」下拉 |
+| 就地提示 | `LegalNotice.vue` | 发帖页、评论框、题解编辑器、AI 面板；一句话告知 + 可点开对应声明 |
+
+- 桌面入口在手机档由 `.cw-hide-phone` 收起，手机入口由 `.cw-only-phone` 显示，两者断点必须同为 768px —— `tests/legal-docs.test.mjs` 会卡这个成对关系，避免出现"两边都没有入口"的空窗。
+- 收起的原因：375px 下顶栏右侧簇本来就很挤，多一个 40px 触屏目标会把搜索框从 ~80px 压到 ~43px。
+- 对外邮箱只在 `utils/legalDocs.ts` 的 `LEGAL_CONTACT_EMAIL` 里写一次，测试会与《隐私说明》正文比对。
+
 ## 项目结构
 
 ```text
@@ -83,11 +107,15 @@ src/
 ├─ api/                         接口封装
 ├─ components/
 │  ├─ favorites/               收藏夹功能组件
+│  ├─ legal/                   平台声明弹窗、正文渲染与各档入口
 │  └─ question-detail/         题目详情、题解和判题结果组件
+├─ content/legal/              使用规范与隐私说明正文（HTML）
 ├─ router/                     页面路由
 ├─ stores/                     Pinia 状态
 ├─ types/                      TypeScript 类型
 ├─ utils/
+│  ├─ legalDocs.ts             声明正文与展示元数据
+│  ├─ legalKeys.ts             声明文档标识与路径（纯逻辑）
 │  ├─ markdown.ts              Markdown、KaTeX、代码高亮和内容过滤
 │  └─ WebSocket.ts             判题 WebSocket
 └─ views/                      页面级组件

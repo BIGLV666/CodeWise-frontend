@@ -112,8 +112,17 @@
           想起密码了？
           <button type="button" class="text-action strong" @click="router.replace('/login')">返回登录</button>
         </p>
+
+        <!-- 平台声明入口：忘记密码同样需要告知信息如何使用 -->
+        <p class="legal-row">
+          <button type="button" class="text-action" @click="openLegalDoc('usage')">《使用规范》</button>
+          <span class="legal-sep">·</span>
+          <button type="button" class="text-action" @click="openLegalDoc('privacy')">《隐私说明》</button>
+        </p>
       </section>
     </main>
+
+    <LegalDocDialog v-model="legalDialogVisible" :doc="legalDialogDoc" />
   </div>
 </template>
 
@@ -123,9 +132,20 @@ import { useRouter } from 'vue-router'
 import { Key, Lock, Message } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import userApi from '@/api/userApi'
+import LegalDocDialog from '@/components/legal/LegalDocDialog.vue'
+import type { LegalDocKey } from '@/utils/legalDocs'
 import { logWarn } from '@/utils/logger'
 
 const CODE_COUNTDOWN_SECONDS = 60
+
+// 平台声明弹窗
+const legalDialogVisible = ref(false)
+const legalDialogDoc = ref<LegalDocKey>('usage')
+
+function openLegalDoc(doc: LegalDocKey) {
+  legalDialogDoc.value = doc
+  legalDialogVisible.value = true
+}
 
 const router = useRouter()
 const emailFormRef = ref<FormInstance>()
@@ -287,6 +307,11 @@ function backToEmail() {
 .back-action { display: block; margin: 16px auto 0; }
 
 .footer-row { margin: 24px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+
+.legal-row { margin: 10px 0 0; color: var(--cw-text-3); font-size: 12px; text-align: center; }
+.legal-row .text-action { font-size: 12px; color: var(--cw-text-3); }
+.legal-row .text-action:hover { color: var(--cw-brand-deep); }
+.legal-sep { margin: 0 6px; color: var(--cw-text-faint); }
 
 @media (max-width: 768px) {
   .panel { padding: 32px 24px; }

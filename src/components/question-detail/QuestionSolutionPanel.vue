@@ -234,6 +234,11 @@
                         v-html="renderMarkdown(editorForm.solutionContent || '内容将在这里预览。')"
                     ></div>
                 </div>
+                <!-- 就地告知：题解会公开展示并进入审核 -->
+                <LegalNotice
+                    class="solution-notice"
+                    text="题解将对所有用户公开，并进入审核流程，请不要包含他人隐私信息。"
+                />
                 <div class="editor-actions">
                     <el-button @click="cancelEditor">取消</el-button
                     ><el-button type="primary" :loading="saving" @click="saveSolution">{{
@@ -264,6 +269,7 @@ import communityApi from '@/api/communityApi';
 import { errorText, isLocalFailure } from '@/api/request';
 import { normalizeAvatarUrl } from '@/utils/avatar';
 import { renderMarkdown } from '@/utils/markdown';
+import LegalNotice from '@/components/legal/LegalNotice.vue';
 import { logWarn } from '@/utils/logger'
 
 interface UserSummary {
@@ -904,6 +910,9 @@ watch(
     flex-direction: column;
     gap: 14px;
     padding-top: 18px;
+}
+.solution-notice {
+    margin: 0;
 }
 .preview-block {
     padding: 14px;

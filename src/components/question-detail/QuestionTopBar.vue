@@ -9,6 +9,7 @@
       <span class="navbar-id cw-hide-phone">{{ questionId || '' }}</span>
     </div>
     <div class="navbar-right">
+      <LegalHelpMenu class="cw-hide-phone" />
       <InboxButton />
       <!-- 桌面/平板：动作平铺 -->
       <template v-if="!isPhone">
@@ -26,11 +27,17 @@
             <el-dropdown-item @click="$emit('favorite')">收藏</el-dropdown-item>
             <el-dropdown-item @click="$emit('copy')">复制标题</el-dropdown-item>
             <el-dropdown-item @click="$emit('reset-layout')">重置布局</el-dropdown-item>
+            <!-- 手机档的声明入口：顶栏放不下「帮助」图标，收进这里 -->
+            <el-dropdown-item divided @click="openLegalDoc('usage')">《使用规范》</el-dropdown-item>
+            <el-dropdown-item @click="openLegalDoc('privacy')">《隐私说明》</el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
     </div>
   </el-header>
+
+  <!-- 多根组件：弹窗 teleport 到 body，不参与顶栏布局；顶栏不接受外部 class，故未做 attrs 透传。 -->
+  <LegalDocDialog v-model="legalVisible" :doc="legalDoc" />
 </template>
 
 <script setup lang="ts">
@@ -39,10 +46,15 @@
  *
  * 手机档把「添加到复习 / 收藏 / 复制 / 重置布局」收进「更多」下拉，
  * 标题允许省略号收缩，否则 375px 下这些动作会把导航挤爆。
+ * 平台声明入口同理：桌面/平板挂「帮助」图标，手机收进同一个「更多」下拉。
  */
+import { ref } from 'vue'
 import { ArrowLeft, CopyDocument, MoreFilled, Star } from '@element-plus/icons-vue'
 import InboxButton from '@/components/notification/InboxButton.vue'
+import LegalDocDialog from '@/components/legal/LegalDocDialog.vue'
+import LegalHelpMenu from '@/components/legal/LegalHelpMenu.vue'
 import { useBreakpoint } from '@/composables/useBreakpoint'
+import { LEGAL_DOCS, type LegalDocKey } from '@/utils/legalDocs'
 
 defineProps<{
   title?: string
@@ -58,6 +70,15 @@ defineEmits<{
 }>()
 
 const { isPhone } = useBreakpoint()
+
+const legalVisible = ref(false)
+const legalDoc = ref<LegalDocKey>('usage')
+
+/** 只用 'usage' / 'privacy' 两个字面量调用，这里仍做一次归一，避免以后手滑传错值导致弹窗空白。 */
+function openLegalDoc(doc: LegalDocKey) {
+  legalDoc.value = doc in LEGAL_DOCS ? doc : 'usage'
+  legalVisible.value = true
+}
 </script>
 
 <style scoped>

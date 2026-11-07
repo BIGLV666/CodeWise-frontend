@@ -8,9 +8,25 @@ import type { GroupInfo, GroupType } from '@/api/groupApi'
  * 作为再次进入的快捷方式，不参与权限判断。
  */
 
-const STORAGE_KEY = 'codewise_recent_groups'
+const STORAGE_KEY_PREFIX = 'codewise_recent_groups'
 const MAX_ITEMS = 8
 const VALID_TYPES: GroupType[] = ['FREE', 'APPROVAL', 'INVITE']
+
+/**
+ * 按用户隔离存储键。
+ *
+ * 登录态失效时前端只会清 token/userId，不一定清 localStorage；如果共用
+ * 一个全局键，同一浏览器的下一个账号会看到上一个账号访问过的私密小组名。
+ */
+function storageKey() {
+  let userId = ''
+  try {
+    userId = localStorage.getItem('userId') || ''
+  } catch {
+    userId = ''
+  }
+  return `${STORAGE_KEY_PREFIX}_${userId || 'guest'}`
+}
 
 export interface RecentGroup {
   groupId: string
@@ -34,7 +50,7 @@ function isRecentGroup(value: unknown): value is RecentGroup {
 
 export function listRecentGroups(): RecentGroup[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey())
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
@@ -49,7 +65,7 @@ export function forgetRecentGroup(groupId: string | number): void {
   const id = String(groupId)
   const rest = listRecentGroups().filter((item) => item.groupId !== id)
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
+    localStorage.setItem(storageKey(), JSON.stringify(rest))
   } catch {
     // 本地存储不可用时忽略
   }
@@ -69,7 +85,7 @@ export function rememberRecentGroup(
   }
   const rest = listRecentGroups().filter((item) => item.groupId !== groupId)
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([next, ...rest].slice(0, MAX_ITEMS)))
+    localStorage.setItem(storageKey(), JSON.stringify([next, ...rest].slice(0, MAX_ITEMS)))
   } catch {
     // 本地存储不可用（隐私模式/配额满）不影响主流程
   }

@@ -187,7 +187,8 @@ import { useUserStore } from '@/stores/User'
 import { logWarn } from '@/utils/logger'
 import { renderMarkdown } from '@/utils/markdown'
 import websocketService from '@/utils/WebSocket'
-import type { JudgeResultDTO, ParsedTestData } from '@/types/QuestionDetail'
+import { resolveParsedTestData } from '@/utils/judgeResult'
+import type { JudgeResultDTO } from '@/types/QuestionDetail'
 
 type LoadState = 'loading' | 'ok' | 'not-member' | 'missing' | 'error'
 
@@ -220,6 +221,7 @@ let progressTimer: number | undefined
 let saveTimer: number | undefined
 let lastLanguage = 'cpp'
 let stopJudgeListener: (() => void) | undefined
+let questionLoadSeq = 0
 
 const param = (key: string) => {
   const raw = route.params[key]
@@ -258,28 +260,7 @@ const judgeResultClass = computed(() => {
   return STATUS_MAP[judgeResult.value.submitStatus]?.cls || ''
 })
 
-function parseErrorMsg(errorMsg: string) {
-  if (!errorMsg) return { input: '', expected: '', actual: '' }
-  const inputMatch = errorMsg.match(/输入:\s*([\s\S]*?)\s*输出:/)
-  const outputMatch = errorMsg.match(/输出:\s*([\s\S]*?)\s*预期:/)
-  const expectedMatch = errorMsg.match(/预期:\s*([\s\S]*?)$/)
-  return {
-    input: inputMatch ? inputMatch[1].trim() : '',
-    expected: expectedMatch ? expectedMatch[1].trim() : '',
-    actual: outputMatch ? outputMatch[1].trim() : '',
-  }
-}
-
-const parsedTestData = computed<ParsedTestData>(() => {
-  const result = judgeResult.value
-  if (!result) return { input: '', expected: '', actual: '' }
-  const fallback = parseErrorMsg(result.error || '')
-  return {
-    input: result.inputData ?? fallback.input,
-    expected: result.expectedOutput ?? fallback.expected,
-    actual: result.actual ?? result.userOutput ?? fallback.actual,
-  }
-})
+const parsedTestData = computed(() => resolveParsedTestData(judgeResult.value))
 
 function difficultyText(value?: number | null) {
   const map: Record<number, string> = { 1: '简单', 2: '中等', 3: '困难' }
@@ -301,18 +282,23 @@ function backToGroup() {
 }
 
 async function loadQuestion() {
-  if (!groupId.value || !groupQuestionId.value) {
+  const targetGroupId = groupId.value
+  const targetQuestionId = groupQuestionId.value
+  if (!targetGroupId || !targetQuestionId) {
     loadState.value = 'missing'
     loadError.value = '缺少小组题目参数'
     return
   }
+  const requestId = ++questionLoadSeq
   loading.value = true
   loadError.value = ''
   try {
     const [groupResult, questionResult] = await Promise.allSettled([
-      groupApi.getGroup(groupId.value, true),
-      groupApi.getQuestion(groupId.value, groupQuestionId.value, true),
+      groupApi.getGroup(targetGroupId, true),
+      groupApi.getQuestion(targetGroupId, targetQuestionId, true),
     ])
+    // 路由复用时旧请求可能晚于新请求返回，只允许最新一次写入状态。
+    if (requestId !== questionLoadSeq) return
 
     if (groupResult.status === 'fulfilled') {
       const info = unwrap<GroupInfo | null>(groupResult.value, null)
@@ -328,9 +314,11 @@ async function loadQuestion() {
     question.value = detail.questionDto
     loadState.value = 'ok'
     await nextTick()
+    if (requestId !== questionLoadSeq) return
     initEditor()
     applySavedCode()
   } catch (error) {
+    if (requestId !== questionLoadSeq) return
     const bizCode = (error as { bizCode?: number } | null)?.bizCode
     if (bizCode === 4041101) {
       loadState.value = 'not-member'
@@ -342,7 +330,7 @@ async function loadQuestion() {
       logWarn('加载小组题目失败:', error)
     }
   } finally {
-    loading.value = false
+    if (requestId === questionLoadSeq) loading.value = false
   }
 }
 
@@ -370,13 +358,23 @@ const LANGUAGE_IDS: Record<string, string> = {
   javascript: 'javascript',
 }
 
-const codeKey = (language: string) =>
-  `${CODE_PREFIX}${currentUserId.value}_${groupId.value}_${groupQuestionId.value}_${language}`
+const codeKeyFor = (
+  targetGroupId: string,
+  targetQuestionId: string,
+  language: string,
+) => `${CODE_PREFIX}${currentUserId.value}_${targetGroupId}_${targetQuestionId}_${language}`
 
-function saveCode(language: string, code: string) {
-  if (!code.trim()) return
+const codeKey = (language: string) =>
+  codeKeyFor(groupId.value, groupQuestionId.value, language)
+
+function saveCode(language: string, code: string, targetGroupId = groupId.value, targetQuestionId = groupQuestionId.value) {
+  if (!targetGroupId || !targetQuestionId) return
   try {
-    localStorage.setItem(codeKey(language), JSON.stringify({ code, savedAt: Date.now() }))
+    // 空代码也要落盘：用户清空编辑器后刷新应保持为空，而不是又变回模板。
+    localStorage.setItem(
+      codeKeyFor(targetGroupId, targetQuestionId, language),
+      JSON.stringify({ code, savedAt: Date.now() }),
+    )
   } catch {
     // 本地存储不可用时不影响提交
   }
@@ -384,12 +382,19 @@ function saveCode(language: string, code: string) {
 
 function loadCode(language: string): string | null {
   try {
-    const raw = localStorage.getItem(codeKey(language))
+    const key = codeKey(language)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as { code?: unknown; savedAt?: unknown }
-    if (typeof parsed.code !== 'string') return null
-    if (typeof parsed.savedAt !== 'number') return null
-    if (Date.now() - parsed.savedAt > CODE_EXPIRE_TIME) return null
+    if (typeof parsed.code !== 'string' || typeof parsed.savedAt !== 'number') {
+      localStorage.removeItem(key)
+      return null
+    }
+    if (Date.now() - parsed.savedAt > CODE_EXPIRE_TIME) {
+      // 顺手清掉过期缓存，避免旧代码长期占用存储。
+      localStorage.removeItem(key)
+      return null
+    }
     return parsed.code
   } catch {
     return null
@@ -398,14 +403,25 @@ function loadCode(language: string): string | null {
 
 function applySavedCode() {
   if (!editor) return
-  editor.setValue(loadCode(selectedLanguage.value) || DEFAULT_CODES[selectedLanguage.value] || '')
+  const saved = loadCode(selectedLanguage.value)
+  editor.setValue(
+    saved !== null ? saved : DEFAULT_CODES[selectedLanguage.value] || '',
+  )
   lastLanguage = selectedLanguage.value
   editorStatus.value = '已保存'
 }
 
 // ====== 编辑器 ======
 function initEditor() {
-  if (editor || !editorContainer.value) return
+  if (!editorContainer.value) return
+  if (editor) {
+    const dom = editor.getDomNode()
+    // 加载态切换（not-member/missing）会 v-if 卸载工作区，旧实例仍指向已脱离
+    // 文档的节点；此时必须销毁重建，否则编辑器不会显示。
+    if (dom && editorContainer.value.contains(dom)) return
+    editor.dispose()
+    editor = null
+  }
   editor = monaco.editor.create(editorContainer.value, {
     value: DEFAULT_CODES[selectedLanguage.value] || '',
     language: LANGUAGE_IDS[selectedLanguage.value] || 'cpp',
@@ -446,7 +462,8 @@ function onLanguageChange(language: string) {
   lastLanguage = language
   const model = editor.getModel()
   if (model) monaco.editor.setModelLanguage(model, LANGUAGE_IDS[language] || 'cpp')
-  editor.setValue(loadCode(language) || DEFAULT_CODES[language] || '')
+  const saved = loadCode(language)
+  editor.setValue(saved !== null ? saved : DEFAULT_CODES[language] || '')
   editorStatus.value = '已保存'
 }
 
@@ -461,7 +478,12 @@ function startProgress() {
   if (progressTimer) window.clearInterval(progressTimer)
   judgeProgress.value = 0
   progressTimer = window.setInterval(() => {
-    if (judgeProgress.value < 90) judgeProgress.value += 10
+    if (judgeProgress.value >= 90) {
+      // 进度条停在 90%，等待判题结果推送，避免空转定时器。
+      stopProgress()
+      return
+    }
+    judgeProgress.value += 10
   }, 300)
 }
 
@@ -567,12 +589,29 @@ async function copyText(text: string) {
 watch(currentUserId, setupJudgeSubscriptions)
 
 watch(
-  () => [groupId.value, groupQuestionId.value],
-  () => {
-    if (!groupId.value || !groupQuestionId.value) return
+  () => [groupId.value, groupQuestionId.value] as const,
+  ([nextGroupId, nextQuestionId], previous) => {
+    // 先把上一道题的代码按旧小组/题目落盘，再做切换；否则会写进新题目的缓存键。
+    const prevGroupId = previous?.[0] || ''
+    const prevQuestionId = previous?.[1] || ''
+    if (editor && prevGroupId && prevQuestionId) {
+      saveCode(lastLanguage, editor.getValue(), prevGroupId, prevQuestionId)
+    }
+    if (saveTimer) {
+      window.clearTimeout(saveTimer)
+      saveTimer = undefined
+    }
+    questionLoadSeq += 1
+    stopProgress()
+    judgeProgress.value = 0
     judgeResult.value = null
     submitting.value = false
     question.value = null
+    if (!nextGroupId || !nextQuestionId) {
+      loadState.value = 'missing'
+      loadError.value = '缺少小组题目参数'
+      return
+    }
     loadState.value = 'loading'
     void loadQuestion()
   },

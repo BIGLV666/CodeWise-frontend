@@ -216,8 +216,9 @@ import QuestionTopBar from '@/components/question-detail/QuestionTopBar.vue'
 import AiAssistantPanel from '@/components/question-detail/AiAssistantPanel.vue'
 import RealtimeAdviceWidget from '@/components/question-detail/RealtimeAdviceWidget.vue'
 import type { FavoriteCollection } from '@/types/FavoriteProblem'
-import type { DebugTestCase, JudgeResultDTO, JudgeReturnRecordDto, ParsedTestData } from '@/types/QuestionDetail'
+import type { DebugTestCase, JudgeResultDTO, JudgeReturnRecordDto } from '@/types/QuestionDetail'
 import { useUserStore } from '@/stores/User'
+import { resolveParsedTestData } from '@/utils/judgeResult'
 import { navigateBack } from '@/utils/navigation'
 import { useBreakpoint, breakpointQuery } from '@/composables/useBreakpoint'
 import { useMediaQuery } from '@/composables/useMediaQuery'
@@ -841,28 +842,7 @@ watch(selectedLanguage, (newLang:any) => {
 })
 
 // ====== 解析错误信息 ======
-const parseErrorMsg = (errorMsg: string) => {
-  if (!errorMsg) return { input: '', expected: '', actual: '' }
-  const inputMatch = errorMsg.match(/输入:\s*([\s\S]*?)\s*输出:/)
-  const outputMatch = errorMsg.match(/输出:\s*([\s\S]*?)\s*预期:/)
-  const expectedMatch = errorMsg.match(/预期:\s*([\s\S]*?)$/)
-  return {
-    input: inputMatch ? inputMatch[1].trim() : '',
-    expected: expectedMatch ? expectedMatch[1].trim() : '',
-    actual: outputMatch ? outputMatch[1].trim() : ''
-  }
-}
-
-const parsedTestData = computed<ParsedTestData>(() => {
-  const result = judgeResult.value
-  if (!result) return { input: '', expected: '', actual: '' }
-  const fallback = parseErrorMsg(result.error || '')
-  return {
-    input: result.inputData ?? fallback.input,
-    expected: result.expectedOutput ?? fallback.expected,
-    actual: result.actual ?? result.userOutput ?? fallback.actual,
-  }
-})
+const parsedTestData = computed(() => resolveParsedTestData(judgeResult.value))
 // ====== 调试相关 ======
 const hasUserModified = ref(false)  // ✅ 新增：标记用户是否手动修改过用例
 // ====== WebSocket ======

@@ -130,7 +130,7 @@
             v-model="joinForm.groupId"
             placeholder="输入数字小组 ID"
             clearable
-            @input="joinPreview = null"
+            @input="handleJoinIdInput"
             @keyup.enter="previewGroup"
           />
           <el-button :loading="previewLoading" @click="previewGroup">查询</el-button>
@@ -234,6 +234,8 @@ const previewLoading = ref(false)
 const joinPreview = ref<GroupInfo | null>(null)
 const joinError = ref('')
 const joinForm = reactive({ groupId: '', token: '' })
+// 查询预览的请求序号：慢请求返回时不能覆盖用户后来输入的小组。
+let previewSeq = 0
 
 onMounted(() => {
   reloadRecent()
@@ -310,6 +312,8 @@ async function submitCreate() {
 }
 
 function openJoin(prefill?: { groupId?: string; token?: string }) {
+  // 打开弹窗即作废上一次查询，避免旧响应回填到新表单。
+  previewSeq += 1
   joinForm.groupId = prefill?.groupId || ''
   joinForm.token = prefill?.token || ''
   joinPreview.value = null
@@ -320,11 +324,20 @@ function openJoin(prefill?: { groupId?: string; token?: string }) {
   }
 }
 
+function handleJoinIdInput() {
+  previewSeq += 1
+  joinPreview.value = null
+  joinError.value = ''
+  previewLoading.value = false
+}
+
 function resetJoinForm() {
+  previewSeq += 1
   joinForm.groupId = ''
   joinForm.token = ''
   joinPreview.value = null
   joinError.value = ''
+  previewLoading.value = false
 }
 
 function openJoinFromQuery() {
@@ -340,25 +353,33 @@ async function previewGroup() {
     ElMessage.warning('请输入数字小组 ID')
     return
   }
+  const requestId = ++previewSeq
   previewLoading.value = true
   joinError.value = ''
+  joinPreview.value = null
   try {
     const result = await groupApi.getGroup(groupId, true)
+    if (requestId !== previewSeq || joinForm.groupId.trim() !== groupId) return
     joinPreview.value = unwrap<GroupInfo | null>(result, null)
     if (!joinPreview.value) {
       joinError.value = '没有找到这个小组，请核对小组 ID'
     }
   } catch (error) {
+    if (requestId !== previewSeq) return
     joinPreview.value = null
     joinError.value = errorText(error, '小组查询失败，请稍后重试')
     logWarn('查询小组失败:', error)
   } finally {
-    previewLoading.value = false
+    if (requestId === previewSeq) previewLoading.value = false
   }
 }
 
 async function submitJoin() {
-  if (!joinPreview.value) {
+  // 输入框和预览必须指向同一个小组，否则先重新查询再提交。
+  if (
+    !joinPreview.value ||
+    String(joinPreview.value.groupId) !== joinForm.groupId.trim()
+  ) {
     await previewGroup()
   }
   if (!joinPreview.value) return

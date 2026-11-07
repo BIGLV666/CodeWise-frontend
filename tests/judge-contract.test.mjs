@@ -8,6 +8,13 @@ import { ref, reactive, computed, watch, nextTick, effectScope } from 'vue'
 
 const view = readFileSync(new URL('../src/views/QuestionDetailView.vue', import.meta.url), 'utf8')
 const source = parse(view).descriptor.scriptSetup.content.replace(/^import .*$/gm, '')
+// 题目详情页的测试数据解析已抽到 utils/judgeResult.ts，这里一并载入同一上下文。
+const judgeUtil = readFileSync(new URL('../src/utils/judgeResult.ts', import.meta.url), 'utf8')
+  .replace(/^import .*$/gm, '')
+  .replace(/^export /gm, '')
+const compiledUtil = ts.transpileModule(judgeUtil, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+}).outputText
 const compiled = ts.transpileModule(source + `
  globalThis.testView = {
    handleSubmit, handleDebug, setupJudgeSubscriptions, debugTestCases, debugging,
@@ -59,7 +66,10 @@ function fixture(t, from) {
     window: { addEventListener() {}, removeEventListener() {} },
   })
   const scope = effectScope()
-  scope.run(() => vm.runInContext(compiled, context))
+  scope.run(() => {
+    vm.runInContext(compiledUtil, context)
+    vm.runInContext(compiled, context)
+  })
   t.after(() => scope.stop())
   const state = context.testView
   state.setEditor('print(2)')

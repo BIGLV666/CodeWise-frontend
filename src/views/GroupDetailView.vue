@@ -484,6 +484,36 @@ const joinToken = ref('')
 const approvalSubmitted = ref(false)
 const activeTab = ref<TabKey>('questions')
 
+// 组件会在路由参数变化时复用；用序号丢弃旧请求，避免慢响应覆盖新小组的数据。
+let groupLoadSeq = 0
+let questionLoadSeq = 0
+let submissionLoadSeq = 0
+let inviteSearchSeq = 0
+
+const currentUserId = () => String(userStore.getUserId || 'guest')
+
+/** APPROVAL 的「已申请」后端无法查询，这里按用户 + 小组在本地记住，刷新后仍能提示。 */
+function pendingKey(targetGroupId: string) {
+  return `codewise_group_pending_${currentUserId()}_${targetGroupId}`
+}
+
+function readPending(targetGroupId: string) {
+  try {
+    return localStorage.getItem(pendingKey(targetGroupId)) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writePending(targetGroupId: string, pending: boolean) {
+  try {
+    if (pending) localStorage.setItem(pendingKey(targetGroupId), '1')
+    else localStorage.removeItem(pendingKey(targetGroupId))
+  } catch {
+    // 本地存储不可用时只影响刷新后的提示
+  }
+}
+
 const questions = ref<GroupQuestionItem[]>([])
 const questionsLoading = ref(false)
 const questionsHasNext = ref(false)
@@ -543,9 +573,20 @@ watch(activeTab, (tab) => {
 // 组件按路由 name 复用：直接在两个小组之间前进/后退时不会重新挂载，需要手动换数据。
 watch(groupId, (value, previous) => {
   if (!value || value === previous) return
+  // 先让所有进行中的请求作废，再清空页面数据。
+  groupLoadSeq += 1
+  questionLoadSeq += 1
+  submissionLoadSeq += 1
+  inviteSearchSeq += 1
   group.value = null
+  loadError.value = ''
   questions.value = []
   submitRecords.value = []
+  // 旧请求的 finally 因序号已变化不会再执行，这里主动复位加载态。
+  questionsLoading.value = false
+  submissionsLoading.value = false
+  questionsHasNext.value = false
+  submissionsHasNext.value = false
   questionNextCursor.value = null
   submissionsNextCursor.value = null
   submissionsLoaded.value = false
@@ -559,16 +600,19 @@ function backToGroups() {
 }
 
 async function loadGroup() {
-  if (!groupId.value) {
+  const targetGroupId = groupId.value
+  if (!targetGroupId) {
     loadError.value = '缺少小组 ID'
     memberState.value = 'unknown'
     return
   }
+  const requestId = ++groupLoadSeq
   loading.value = true
   loadError.value = ''
   memberState.value = 'checking'
   try {
-    const result = await groupApi.getGroup(groupId.value, true)
+    const result = await groupApi.getGroup(targetGroupId, true)
+    if (requestId !== groupLoadSeq || targetGroupId !== groupId.value) return
     const info = unwrap<GroupInfo | null>(result, null)
     if (!info) {
       loadError.value = '小组不存在或已被删除'
@@ -578,13 +622,15 @@ async function loadGroup() {
     group.value = info
     isOwner.value = String(info.userId) === String(userStore.getUserId || '')
     rememberRecentGroup(info)
-    await probeMembership()
+    await probeMembership(targetGroupId, requestId)
   } catch (error) {
+    if (requestId !== groupLoadSeq || targetGroupId !== groupId.value) return
     loadError.value = errorText(error, '小组信息加载失败，请稍后重试')
     memberState.value = 'unknown'
     logWarn('加载小组信息失败:', error)
   } finally {
-    loading.value = false
+    // 只有最后一次请求能结束 loading，避免旧请求提前关掉新请求的加载态。
+    if (requestId === groupLoadSeq) loading.value = false
   }
 }
 
@@ -594,17 +640,22 @@ async function loadGroup() {
  * 用 silent 请求，非成员返回 4041101 时不应弹全局错误；
  * 其他失败（网络/服务异常）标记为 unknown，不能误判成「未加入」。
  */
-async function probeMembership() {
+async function probeMembership(targetGroupId: string, requestId: number) {
   memberState.value = 'checking'
   try {
-    const result = await groupApi.listQuestions(groupId.value, { pageSize: 20 }, true)
+    const result = await groupApi.listQuestions(targetGroupId, { pageSize: 20 }, true)
+    if (requestId !== groupLoadSeq || targetGroupId !== groupId.value) return
     const page = unwrap<GroupQuestionCursorPage | null>(result, null)
     memberState.value = 'member'
+    approvalSubmitted.value = false
+    writePending(targetGroupId, false)
     applyQuestionPage(page, true)
   } catch (error) {
+    if (requestId !== groupLoadSeq || targetGroupId !== groupId.value) return
     const bizCode = (error as { bizCode?: number } | null)?.bizCode
     if (bizCode === 4041101) {
       memberState.value = 'non-member'
+      approvalSubmitted.value = readPending(targetGroupId)
     } else {
       memberState.value = 'unknown'
       logWarn('探测小组成员身份失败:', error)
@@ -631,18 +682,21 @@ function applyQuestionPage(page: GroupQuestionCursorPage | null, reset: boolean)
 
 async function loadQuestions(reset: boolean) {
   if (!isMember.value || questionsLoading.value) return
+  const targetGroupId = groupId.value
+  const requestId = ++questionLoadSeq
   questionsLoading.value = true
   try {
-    const result = await groupApi.listQuestions(groupId.value, {
+    const result = await groupApi.listQuestions(targetGroupId, {
       pageSize: 20,
       lastId: reset ? null : questionNextCursor.value,
     })
+    if (requestId !== questionLoadSeq || targetGroupId !== groupId.value) return
     const page = unwrap<GroupQuestionCursorPage | null>(result, null)
     applyQuestionPage(page, reset)
   } catch (error) {
-    logWarn('加载小组题库失败:', error)
+    if (requestId === questionLoadSeq) logWarn('加载小组题库失败:', error)
   } finally {
-    questionsLoading.value = false
+    if (requestId === questionLoadSeq) questionsLoading.value = false
   }
 }
 
@@ -661,12 +715,15 @@ function mapSubmitRecord(raw: any): GroupSubmitRecord {
 
 async function loadSubmissions(reset: boolean) {
   if (!isMember.value || submissionsLoading.value) return
+  const targetGroupId = groupId.value
+  const requestId = ++submissionLoadSeq
   submissionsLoading.value = true
   try {
-    const result = await groupApi.listSubmitRecords(groupId.value, {
+    const result = await groupApi.listSubmitRecords(targetGroupId, {
       pageSize: 20,
       lastId: reset ? null : submissionsNextCursor.value,
     })
+    if (requestId !== submissionLoadSeq || targetGroupId !== groupId.value) return
     const page = unwrap<GroupSubmitRecordPage | null>(result, null)
     const records = Array.isArray(page?.records) ? page!.records.map(mapSubmitRecord) : []
     submitRecords.value = reset ? records : [...submitRecords.value, ...records]
@@ -674,9 +731,9 @@ async function loadSubmissions(reset: boolean) {
     submissionsHasNext.value = Boolean(page?.hasNext)
     submissionsLoaded.value = true
   } catch (error) {
-    logWarn('加载小组提交记录失败:', error)
+    if (requestId === submissionLoadSeq) logWarn('加载小组提交记录失败:', error)
   } finally {
-    submissionsLoading.value = false
+    if (requestId === submissionLoadSeq) submissionsLoading.value = false
   }
 }
 
@@ -723,17 +780,21 @@ function formatDate(value?: string) {
 
 async function handleJoin() {
   if (!group.value) return
-  if (group.value.groupType === 'INVITE' && !joinToken.value.trim()) {
+  const targetGroupId = groupId.value
+  const targetGroupType = group.value.groupType
+  if (targetGroupType === 'INVITE' && !joinToken.value.trim()) {
     ElMessage.warning('该小组需要邀请码，请先填写')
     return
   }
   joining.value = true
   try {
-    await groupApi.joinGroup(group.value.groupId, joinToken.value.trim() || undefined)
-    if (group.value.groupType === 'APPROVAL') {
+    await groupApi.joinGroup(targetGroupId, joinToken.value.trim() || undefined)
+    if (targetGroupId !== groupId.value) return
+    if (targetGroupType === 'APPROVAL') {
       // 后端对所有成功路径都返回 data:true，无法区分 PENDING / APPROVED，
       // 这里按「申请已提交」处理，不重新探测成员身份。
       approvalSubmitted.value = true
+      writePending(targetGroupId, true)
       ElMessage.success('入组申请已提交，等待管理员审批')
     } else {
       ElMessage.success('已加入小组')
@@ -750,10 +811,12 @@ async function handleJoin() {
 
 /** 撤销 APPROVAL 小组的待审批申请：后端允许 PENDING 记录调用退出接口。 */
 async function cancelApplication() {
+  const targetGroupId = groupId.value
   canceling.value = true
   try {
-    await groupApi.leaveGroup(groupId.value)
-    approvalSubmitted.value = false
+    await groupApi.leaveGroup(targetGroupId)
+    writePending(targetGroupId, false)
+    if (targetGroupId === groupId.value) approvalSubmitted.value = false
     ElMessage.success('已撤销入组申请')
   } catch (error) {
     if (isLocalFailure(error)) {
@@ -776,9 +839,11 @@ async function handleLeave() {
     return
   }
   leaving.value = true
+  const targetGroupId = groupId.value
   try {
-    await groupApi.leaveGroup(groupId.value)
-    forgetRecentGroup(groupId.value)
+    await groupApi.leaveGroup(targetGroupId)
+    writePending(targetGroupId, false)
+    forgetRecentGroup(targetGroupId)
     ElMessage.success('已退出小组')
     router.replace('/groups')
   } catch (error) {
@@ -919,10 +984,12 @@ async function removeQuestion(item: GroupQuestionItem) {
 }
 
 function openInvite() {
+  inviteSearchSeq += 1
   inviteKeyword.value = ''
   inviteResults.value = []
   inviteTarget.value = null
   inviteContent.value = ''
+  inviteSearching.value = false
   inviteVisible.value = true
 }
 
@@ -932,21 +999,29 @@ async function searchInviteUsers() {
     ElMessage.warning('请输入昵称或用户名')
     return
   }
+  const requestId = ++inviteSearchSeq
+  // 新搜索必须清掉上一次选择，否则不改选直接发送会发给旧用户。
+  inviteTarget.value = null
+  inviteResults.value = []
   inviteSearching.value = true
   try {
     const result = await userApi.findUsers({ name }, true)
+    if (requestId !== inviteSearchSeq) return
     inviteResults.value = unwrap<UserDto[]>(result, [])
     if (inviteResults.value.length === 0) ElMessage.info('没有找到匹配的用户')
   } catch (error) {
+    if (requestId !== inviteSearchSeq) return
     // 后端搜索无结果时返回 4040101，而不是空数组。
     if ((error as { bizCode?: number } | null)?.bizCode === 4040101) {
       inviteResults.value = []
       ElMessage.info('没有找到匹配的用户')
-    } else if (isLocalFailure(error)) {
+    } else {
+      // 搜索接口是 silent 的（为了自定义 404 文案），其他失败必须在这里补提示。
       ElMessage.error(errorText(error, '搜索用户失败'))
+      logWarn('搜索邀请用户失败:', error)
     }
   } finally {
-    inviteSearching.value = false
+    if (requestId === inviteSearchSeq) inviteSearching.value = false
   }
 }
 
@@ -961,12 +1036,14 @@ async function sendInvite() {
     ElMessage.error('该用户 ID 无效，请重新搜索')
     return
   }
+  const targetGroupId = groupId.value
   inviteSending.value = true
   try {
-    await groupApi.sendInvitation(groupId.value, {
+    await groupApi.sendInvitation(targetGroupId, {
       toUserId,
       content: inviteContent.value.trim() || undefined,
     })
+    if (targetGroupId !== groupId.value) return
     ElMessage.success('邀请码已通过站内信发送')
     inviteVisible.value = false
   } catch (error) {

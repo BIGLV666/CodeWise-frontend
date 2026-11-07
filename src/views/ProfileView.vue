@@ -16,6 +16,7 @@
           <button class="nav-item" type="button" @click="goHome">题库</button>
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item" type="button" @click="goDiscuss">讨论</button>
+          <button class="nav-item" type="button" @click="goGroups">小组</button>
           <button class="nav-item" type="button" @click="goReview">复习</button>
           <LegalDrawerLinks />
         </nav>
@@ -1109,6 +1110,7 @@ const selectProfileSection = async (section: 'overview' | 'content' | 'ai') => {
 }
 const goReview = () => navigateTopLevel(router, '/review')
 const goDiscuss = () => navigateTopLevel(router, '/discuss')
+const goGroups = () => navigateTopLevel(router, '/groups')
 const goFavorites = () => navigateTopLevel(router, '/favorites')
 const handleProfileCommand = (command: string) => {
   if (command === 'avatar') {

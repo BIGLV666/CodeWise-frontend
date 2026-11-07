@@ -1,7 +1,7 @@
 import request from './request';
 
-export type NotificationType = 'LIKE' | 'REVIEW' | 'REVIEW_MASTERED' | 'CHECKED';
-export type NotificationBusinessType = 'POST' | 'COMMENT' | 'SOLUTION' | 'REVIEW_RECORD';
+export type NotificationType = 'LIKE' | 'REVIEW' | 'REVIEW_MASTERED' | 'CHECKED' | 'GROUP_INVITE';
+export type NotificationBusinessType = 'POST' | 'COMMENT' | 'SOLUTION' | 'REVIEW_RECORD' | 'GROUP';
 
 export interface NotificationLikeExtraData {
     userId?: string;
@@ -25,6 +25,17 @@ export interface NotificationCheckedExtraData {
     questionId?: string;
 }
 
+/** 小组邀请站内信的 extraData（后端 JoinToken）。 */
+export interface NotificationGroupInviteExtraData {
+  token?: string
+  groupId?: string
+  toUserId?: string
+  context?: string
+  groupName?: string
+  userName?: string
+  sendTime?: string
+}
+
 export interface NotificationSummary {
     notificationCenterId: string;
     messageId?: string;
@@ -39,7 +50,11 @@ export interface NotificationSummary {
 
 export interface NotificationDetail extends NotificationSummary {
     content?: string;
-    extraData?: NotificationLikeExtraData | NotificationCheckedExtraData | null;
+    extraData?:
+      | NotificationLikeExtraData
+      | NotificationCheckedExtraData
+      | NotificationGroupInviteExtraData
+      | null;
 }
 
 export interface NotificationCursorPage {

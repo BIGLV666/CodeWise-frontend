@@ -4,7 +4,9 @@ export interface JudgeRequest {
   language: string
   questionTitle:string
   questionId: number
-  submitScene: 'NORMAL' | 'REVIEW' | 'PLAN'
+  submitScene: 'NORMAL' | 'REVIEW' | 'PLAN' | 'GROUP'
+  /** 小组提交时必填，普通提交留空。 */
+  groupId?: string | number
 }
 // types/debug.ts
 export interface DebugTestCase {

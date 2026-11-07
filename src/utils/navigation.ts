@@ -1,6 +1,14 @@
 import type { RouteLocationRaw, Router } from 'vue-router'
 
-export type TopLevelPath = '/home' | '/review' | '/discuss' | '/favorites' | '/inbox' | '/profile' | '/agent'
+export type TopLevelPath =
+  | '/home'
+  | '/review'
+  | '/discuss'
+  | '/favorites'
+  | '/inbox'
+  | '/profile'
+  | '/agent'
+  | '/groups'
 
 function getTargetPath(router: Router, target: RouteLocationRaw) {
   return router.resolve(target).path

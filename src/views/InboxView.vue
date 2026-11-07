@@ -68,6 +68,7 @@
                   <Calendar v-if="item.type === 'REVIEW'" />
                   <Trophy v-else-if="item.type === 'REVIEW_MASTERED'" />
                   <CircleCheck v-else-if="item.type === 'CHECKED'" />
+                  <Promotion v-else-if="item.type === 'GROUP_INVITE'" />
                   <Pointer v-else />
                 </el-icon>
               </span>
@@ -141,6 +142,7 @@
                 <Calendar v-if="detail.type === 'REVIEW'" />
                 <Trophy v-else-if="detail.type === 'REVIEW_MASTERED'" />
                 <CircleCheck v-else-if="detail.type === 'CHECKED'" />
+                <Promotion v-else-if="detail.type === 'GROUP_INVITE'" />
                 <Pointer v-else />
               </el-icon>
             </span>
@@ -178,6 +180,7 @@ import {
   Delete,
   Message,
   Pointer,
+  Promotion,
   Refresh,
   Trophy,
   WarningFilled,
@@ -185,6 +188,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import notificationApi, {
   type NotificationDetail,
+  type NotificationGroupInviteExtraData,
   type NotificationLikeExtraData,
   type NotificationSummary,
   type NotificationType,
@@ -201,6 +205,7 @@ const typeOptions = [
   { label: '复习', value: 'REVIEW' },
   { label: '点赞', value: 'LIKE' },
   { label: '审核', value: 'CHECKED' },
+  { label: '小组', value: 'GROUP_INVITE' },
 ]
 const activeType = ref<'ALL' | NotificationType>('ALL')
 const unreadOnly = ref(false)
@@ -217,14 +222,17 @@ const errorMessage = ref('')
 const reviewNotifications = computed(() => notifications.value.filter((item) => item.type === 'REVIEW'))
 const likeNotifications = computed(() => notifications.value.filter((item) => item.type === 'LIKE'))
 const checkedNotifications = computed(() => notifications.value.filter((item) => item.type === 'CHECKED'))
+const groupNotifications = computed(() => notifications.value.filter((item) => item.type === 'GROUP_INVITE'))
 const primaryNotifications = computed(() =>
   activeType.value === 'LIKE'
     ? likeNotifications.value
     : activeType.value === 'CHECKED'
       ? checkedNotifications.value
-      : activeType.value === 'ALL'
-        ? notifications.value.filter((item) => item.type !== 'LIKE')
-        : reviewNotifications.value,
+      : activeType.value === 'GROUP_INVITE'
+        ? groupNotifications.value
+        : activeType.value === 'ALL'
+          ? notifications.value.filter((item) => item.type !== 'LIKE')
+          : reviewNotifications.value,
 )
 const headingSummary = computed(() => {
   if (notificationStore.unreadCount > 0) return '你有新的复习计划、互动消息或审核结果'
@@ -232,11 +240,19 @@ const headingSummary = computed(() => {
 })
 
 const likeExtra = computed<NotificationLikeExtraData>(() => detail.value?.extraData || {})
+const groupExtra = computed<NotificationGroupInviteExtraData | null>(() =>
+  detail.value?.type === 'GROUP_INVITE'
+    ? (detail.value.extraData as NotificationGroupInviteExtraData | null)
+    : null,
+)
+const groupId = computed(() => groupExtra.value?.groupId || detail.value?.businessId || '')
+const groupToken = computed(() => groupExtra.value?.token || '')
 const rootId = computed(() => likeExtra.value.rootId || detail.value?.businessId || '')
 const canOpenBusiness = computed(() => {
   if (!detail.value) return false
   if (detail.value.type === 'REVIEW') return true
   if (detail.value.type === 'REVIEW_MASTERED') return Boolean(detail.value.businessId)
+  if (detail.value.type === 'GROUP_INVITE') return Boolean(groupId.value)
   if (likeExtra.value.rootType === 'POST') return Boolean(rootId.value)
   if (likeExtra.value.rootType === 'SOLUTION') {
     return Boolean(rootId.value && likeExtra.value.questionId)
@@ -246,6 +262,7 @@ const canOpenBusiness = computed(() => {
 const actionLabel = computed(() => {
   if (detail.value?.type === 'REVIEW') return '前往复习'
   if (detail.value?.type === 'REVIEW_MASTERED') return '查看题目'
+  if (detail.value?.type === 'GROUP_INVITE') return '加入小组'
   if (detail.value?.type === 'CHECKED') {
     if (detail.value.businessType === 'COMMENT') return '查看评论'
     if (likeExtra.value.rootType === 'SOLUTION') return '查看题解'
@@ -260,13 +277,18 @@ const actionLabel = computed(() => {
 const actionHint = computed(() => {
   if (detail.value?.type === 'REVIEW') return '打开今日复习计划继续学习'
   if (detail.value?.type === 'REVIEW_MASTERED') return '回顾这道你已经掌握的题目'
+  if (detail.value?.type === 'GROUP_INVITE') return '带上邀请码打开小组，确认后即可加入'
   if (detail.value?.type === 'CHECKED') return '查看审核内容及完整上下文'
   return '前往相关内容查看完整上下文'
 })
 
 const unwrap = <T,>(response: any, fallback: T): T => (response?.data ?? response ?? fallback) as T
 
-function normalizeExtraData(raw: any): NotificationLikeExtraData | null {
+/** 归一化后的 extraData：点赞/审核字段与小组邀请字段的并集。 */
+type NormalizedNotificationExtraData = NotificationLikeExtraData &
+  NotificationGroupInviteExtraData
+
+function normalizeExtraData(raw: any): NormalizedNotificationExtraData | null {
   if (!raw || typeof raw !== 'object') return null
   return {
     userId: raw.userId == null ? undefined : String(raw.userId),
@@ -277,6 +299,11 @@ function normalizeExtraData(raw: any): NotificationLikeExtraData | null {
     rootType: raw.rootType,
     rootCommentId: raw.rootCommentId == null ? undefined : String(raw.rootCommentId),
     questionId: raw.questionId == null ? undefined : String(raw.questionId),
+    // 小组邀请：JoinToken 里的邀请码与小组信息，邀请码必须按字符串保留前导 0。
+    token: typeof raw.token === 'string' ? raw.token : undefined,
+    groupId: raw.groupId == null ? undefined : String(raw.groupId),
+    groupName: typeof raw.groupName === 'string' ? raw.groupName : undefined,
+    context: typeof raw.context === 'string' ? raw.context : undefined,
   }
 }
 
@@ -412,6 +439,19 @@ function openBusiness() {
     return
   }
 
+  // 小组邀请：businessId / extraData.groupId 即小组 ID，邀请码随 query 带过去自动预填。
+  if (detail.value.type === 'GROUP_INVITE') {
+    if (!groupId.value) return
+    router.push({
+      path: `/groups/${groupId.value}`,
+      query: {
+        ...(groupToken.value ? { token: groupToken.value } : {}),
+        from: '/inbox',
+      },
+    })
+    return
+  }
+
   if (likeExtra.value.rootType === 'POST' && rootId.value) {
     router.push({
       path: `/discuss/${rootId.value}`,
@@ -447,12 +487,14 @@ const typeLabel = (type: NotificationType) => {
   if (type === 'REVIEW') return '复习提醒'
   if (type === 'REVIEW_MASTERED') return '掌握祝贺'
   if (type === 'CHECKED') return '审核结果'
+  if (type === 'GROUP_INVITE') return '小组邀请'
   return '互动消息'
 }
 const fallbackTitle = (type: NotificationType) => {
   if (type === 'REVIEW') return '新的复习提醒'
   if (type === 'REVIEW_MASTERED') return '恭喜掌握一道题目'
   if (type === 'CHECKED') return '内容审核状态已更新'
+  if (type === 'GROUP_INVITE') return '邀请你加入小组'
   return '收到新的点赞'
 }
 
@@ -648,6 +690,11 @@ onMounted(reload)
 .type-icon.checked {
   background: #edf3ff;
   color: #4776d0;
+}
+.type-icon.group_invite,
+.detail-type-icon.group_invite {
+  background: var(--cw-accent-ai-soft);
+  color: var(--cw-accent-ai);
 }
 .message-copy {
   flex: 1;

@@ -20,6 +20,9 @@ const router = createRouter({
     { path: '/discuss', name: 'discuss', component: () => import('@/views/DiscussionView.vue'), meta: { stack: 'root' } },
     { path: '/profile', name: 'profile', component: () => import('@/views/ProfileView.vue'), meta: { stack: 'root' } },
     { path: '/agent', name: 'agent', component: () => import('@/views/AgentView.vue'), meta: { stack: 'root' } },
+    { path: '/groups', name: 'groups', component: () => import('@/views/GroupsView.vue'), meta: { stack: 'root' } },
+    { path: '/groups/:groupId', name: 'group-detail', component: () => import('@/views/GroupDetailView.vue'), meta: { stack: 'detail' } },
+    { path: '/groups/:groupId/questions/:groupQuestionId', name: 'group-question', component: () => import('@/views/GroupQuestionView.vue'), meta: { stack: 'detail' } },
 
     { path: '/questions/import/leetcode', redirect: (to) => ({ path: '/admin/questions/import/leetcode', query: to.query }), meta: { requiresAdmin: true } },
     { path: '/questions/function-test-generator', name: 'function-test-generator', component: () => import('@/views/FunctionTestGeneratorView.vue'), meta: { requiresAdmin: true, stack: 'detail', remountOnQuery: true } },

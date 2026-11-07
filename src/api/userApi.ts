@@ -84,6 +84,13 @@ const userApi={
         return request.post('/user/avatar', formData, {
            headers: { 'Content-Type': 'multipart/form-data' }
         })
+     },
+     /**
+      * 按昵称/用户名模糊查询，或按 userId 精确查询，返回脱敏用户列表。
+      * 后端限流 5 次/分钟，只用于小组邀请时选人。
+      */
+     findUsers(params: { name?: string; userId?: string | number }, silent = false) {
+        return request.get<UserDto[]>('/user/user/list', { params, silent })
      }
 
 }

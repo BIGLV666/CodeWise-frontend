@@ -16,6 +16,7 @@
           <button class="nav-item" type="button" @click="goHome">题库</button>
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item" type="button" @click="goDiscuss">讨论</button>
+          <button class="nav-item" type="button" @click="goGroups">小组</button>
           <button class="nav-item active" type="button">复习</button>
           <LegalDrawerLinks />
         </nav>
@@ -550,6 +551,10 @@ const goHome = () => {
 
 const goDiscuss = () => {
   navigateTopLevel(router, '/discuss')
+}
+
+const goGroups = () => {
+  navigateTopLevel(router, '/groups')
 }
 
 const goFavorites = () => {

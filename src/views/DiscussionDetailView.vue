@@ -16,6 +16,7 @@
           <button type="button" @click="navigateTopLevel(router, '/home')">题库</button>
           <button type="button">竞赛</button>
           <button class="active" type="button" @click="navigateTopLevel(router, '/discuss')">讨论</button>
+          <button type="button" @click="navigateTopLevel(router, '/groups')">小组</button>
           <button type="button" @click="navigateTopLevel(router, '/review')">复习</button>
         </nav>
       </div>

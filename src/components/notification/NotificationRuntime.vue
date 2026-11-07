@@ -69,6 +69,7 @@ const MASTERED_MESSAGE_PREFIX = 'review:mastered:'
 const REVIEW_EVENT = 'inbox-review'
 const CHECKED_EVENT = 'inbox-checked'
 const AI_EVENT = 'ai-advice'
+const GROUP_INVITE_EVENT = 'inbox-group-invite'
 const router = useRouter()
 const userStore = useUserStore()
 const notificationStore = useNotificationStore()
@@ -241,6 +242,10 @@ function handleAiAdviceNotification(message: unknown) {
 const stopReviewListener = websocketService.on(REVIEW_EVENT, handleReviewNotification)
 const stopCheckedListener = websocketService.on(CHECKED_EVENT, handleCheckedNotification)
 const stopAiAdviceListener = websocketService.on(AI_EVENT, handleAiAdviceNotification)
+/** 小组邀请没有弹窗，只需要让收件箱红点立刻更新。 */
+const stopGroupInviteListener = websocketService.on(GROUP_INVITE_EVENT, () => {
+  notificationStore.refreshUnreadCount()
+})
 
 watch(
   [token, () => userDto.value?.userId],
@@ -248,6 +253,7 @@ watch(
     websocketService.unsubscribe(REVIEW_EVENT)
     websocketService.unsubscribe(CHECKED_EVENT)
     websocketService.unsubscribe(AI_EVENT)
+    websocketService.unsubscribe(GROUP_INVITE_EVENT)
 
     if (!currentToken || !currentUserId) {
       await websocketService.disconnect(true)
@@ -257,6 +263,10 @@ watch(
     websocketService.subscribe(REVIEW_EVENT, `/queue/INBOX_REVIEW-${String(currentUserId)}`)
     websocketService.subscribe(CHECKED_EVENT, `/queue/INBOX_CHECKED-${String(currentUserId)}`)
     websocketService.subscribe(AI_EVENT, `/queue/AI_ADVICE-${String(currentUserId)}`)
+    websocketService.subscribe(
+      GROUP_INVITE_EVENT,
+      `/queue/INBOX_GROUP_INVITE-${String(currentUserId)}`,
+    )
     await websocketService.connect(websocketUrl(currentToken), currentToken)
   },
   { immediate: true },
@@ -277,10 +287,12 @@ onBeforeUnmount(() => {
   stopReviewListener()
   stopCheckedListener()
   stopAiAdviceListener()
+  stopGroupInviteListener()
   websocketService.unsubscribe(REVIEW_EVENT)
   websocketService.unsubscribe(CHECKED_EVENT)
-  websocketService.disconnect(true)
   websocketService.unsubscribe(AI_EVENT)
+  websocketService.unsubscribe(GROUP_INVITE_EVENT)
+  websocketService.disconnect(true)
 })
 </script>
 

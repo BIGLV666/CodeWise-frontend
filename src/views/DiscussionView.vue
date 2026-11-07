@@ -16,6 +16,7 @@
           <button class="nav-item" type="button" @click="goHome">题库</button>
           <button class="nav-item" type="button">竞赛</button>
           <button class="nav-item active" type="button">讨论</button>
+          <button class="nav-item" type="button" @click="goGroups">小组</button>
           <button class="nav-item" type="button" @click="goReview">复习</button>
           <LegalDrawerLinks />
         </nav>
@@ -507,6 +508,7 @@ const formatDate = (date?: string) => {
 
 const goHome = () => navigateTopLevel(router, '/home')
 const goReview = () => navigateTopLevel(router, '/review')
+const goGroups = () => navigateTopLevel(router, '/groups')
 const goProfile = () => navigateTopLevel(router, '/profile')
 
 watch(keyword, () => {

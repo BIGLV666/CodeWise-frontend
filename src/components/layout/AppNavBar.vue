@@ -71,7 +71,7 @@
 /**
  * 全站统一的顶部导航栏。
  *
- * 结构固定：品牌 logo + 五个导航项（题库/竞赛/讨论/复习/Agent）+ 右侧簇
+ * 结构固定：品牌 logo + 导航项（题库/竞赛/讨论/小组/复习/Agent）+ 右侧簇
  * （可选搜索框、页面自定义动作 slot、收件箱、管理员入口、头像个人主页入口）。
  * 页面通过 `active` 声明当前高亮的导航项；`showSearch` + `v-model:search`
  * 控制搜索框（题库/收藏类页面使用）；页面特有的控件（如收件箱页的刷新）
@@ -96,7 +96,7 @@ import { normalizeAvatarUrl } from '@/utils/avatar'
 import { useUserStore } from '@/stores/User'
 
 const props = defineProps<{
-  /** 当前高亮的导航项：home | contest | discuss | review | agent | inbox */
+  /** 当前高亮的导航项：home | contest | discuss | groups | review | agent | inbox */
   active?: string
   /** 是否显示搜索框（题库/收藏类页面使用）。 */
   showSearch?: boolean
@@ -116,6 +116,7 @@ const NAV_ITEMS = [
   { key: 'home', label: '题库', go: () => goHome() },
   { key: 'contest', label: '竞赛', go: () => {} },
   { key: 'discuss', label: '讨论', go: () => navigate('discuss') },
+  { key: 'groups', label: '小组', go: () => navigate('groups') },
   { key: 'review', label: '复习', go: () => navigate('review') },
   { key: 'agent', label: 'Agent', go: () => navigate('agent') },
 ] as const
